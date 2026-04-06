@@ -101,12 +101,13 @@ kintone.events.on("app.record.index.show", (event) => {
     const rows = document.querySelectorAll("table.recordlist-gaia tbody tr");
 
     event.records.forEach((record, index) => {
-      if (record["重複自動チェック"].value.length > 0 &&
-         !record["重複自動チェック"].value[0] === "OK") {
+      if (record["重複自動チェック"].value.length > 0) {
+      if (!(record["重複自動チェック"].value[0] === "OK")) {
         const row = rows[index];
         if (row) {
           row.style.backgroundColor = "#ee82ee"; // violet
         }
+      }
       }
       if (record["status"].value === "無効" || record["status"].value === "取消") {
         const row = rows[index];
