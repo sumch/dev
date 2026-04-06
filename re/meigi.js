@@ -80,8 +80,8 @@
                     } else {
                         const y1 = Number(kins2n(state.record.工事費総額_実績.value));
                         const y2 = Number(kins2n(state.record.領収金額_実績.value));
-                        if (Math.round(y1*1.1) >  y2 ) {
-                            kin2_error_msg = '領収金額_実績×1.1以上でなければなりません';
+                        if (Math.round(y1*1.1) <  y2 ) {
+                            kin2_error_msg = '工事費総額_実績×1.1以上でなければなりません';
                             return false;
                         } else {
                             return true;
