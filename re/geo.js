@@ -83,6 +83,7 @@
     const CSV_URLS = {
         '2024R': 'https://cityniigata.com/r/rb/csv_proxy.php?f=2024R',
         '2025R': 'https://cityniigata.com/r/rb/csv_proxy.php?f=2025R',
+        '2026R': 'https://cityniigata.com/r/rb/csv_proxy.php?f=2026R', // ✅ 追加
     };
     const GEO_CONCURRENCY = 5;
     const APP_ID = kintone.app.getId();
@@ -252,31 +253,6 @@
     }
 
     // =============================================================
-    // 重複チェック（2026R 現データ）
-    // ループ前に一括取得済みのレコード配列をメモリ内で比較
-    // =============================================================
-
-    function checkDupIn2026R(target, currentRecordId, checkedRecs) {
-        for (const rec of checkedRecs) {
-            const val = v => (rec[v] ? rec[v].value : '') || '';
-            if (String(rec['$id'].value) === String(currentRecordId)) continue;
-
-            const hit = detectDup(
-                target,
-                normalizeKana(val(F.kana)),
-                getFamilyKana(val(F.kana)),
-                normalizeBday(val(F.bday)),
-                normalizeTel(val(F.tel)),
-                val(F.addr1_normal).trim(),
-                val(F.addr2_normal).trim()
-            );
-
-            if (hit) return { label: `2026R レコードID:${rec['$id'].value}`, hit };
-        }
-        return null;
-    }
-
-    // =============================================================
     // 重複結果 → チェックボックスの値（配列）に変換
     // =============================================================
 
@@ -335,18 +311,16 @@
                     return;
                 }
 
-                // Step 2: 過去CSV・2026R比較レコード（OK済み）を並行取得
+                // Step 2: 過去CSV（2024R・2025R・2026R）を並行取得 ✅ 2026R追加・checkedRecs削除
                 progress.textContent = `データ取得中…（対象 ${targets.length} 件）`;
-                const [csv24, csv25, checkedRecs] = await Promise.all([
+                const [csv24, csv25, csv26] = await Promise.all([
                     fetchCSV(CSV_URLS['2024R']),
                     fetchCSV(CSV_URLS['2025R']),
-                    fetchAllKintoneRecords(
-                        `${F.dupCheck} in ("${CB.ok}")`,
-                        [F.kana, F.bday, F.tel, F.addr1_normal, F.addr2_normal, '$id']
-                    ),
+                    fetchCSV(CSV_URLS['2026R']), // ✅ 追加
                 ]);
                 const rows24 = parseCSV(csv24);
                 const rows25 = parseCSV(csv25);
+                const rows26 = parseCSV(csv26); // ✅ 追加
 
                 // Step 3: ジオコーディング（GEO_CONCURRENCY 件ずつ並列）
                 progress.textContent = `ジオコーディング中… 0 / ${targets.length}`;
@@ -357,11 +331,11 @@
                     const chunkGeo = await Promise.all(chunk.map(rec => {
                         const val = v => (rec[v] ? rec[v].value : '') || '';
 
-                        // 位置用住所: ap212 & ap222 & ap232 & ap242 を結合しスペース除去
+                        // 位置用住所: ap11 & ap12 & ap13 & ap14 を結合しスペース除去
                         const addr1 = [val(F.addr1_p1), val(F.addr1_p2), val(F.addr1_p3), val(F.addr1_p4)]
                             .join('').replace(/[\s　]/g, '');
 
-                        // 位置用住所2: ap11 & ap12 & ap13 & ap14 を結合しスペース除去
+                        // 位置用住所2: ap212 & ap222 & ap232 & ap242 を結合しスペース除去
                         const addr2 = [val(F.addr2_p1), val(F.addr2_p2), val(F.addr2_p3), val(F.addr2_p4)]
                             .join('').replace(/[\s　]/g, '');
 
@@ -399,11 +373,11 @@
                         addr2:  addr2Normal.trim(),
                     };
 
-                    const dup24   = checkDupInCSV(target, rows24, '2024R');
-                    const dup25   = checkDupInCSV(target, rows25, '2025R');
-                    const dup2026 = checkDupIn2026R(target, recId, checkedRecs);
+                    const dup24 = checkDupInCSV(target, rows24, '2024R');
+                    const dup25 = checkDupInCSV(target, rows25, '2025R');
+                    const dup26 = checkDupInCSV(target, rows26, '2026R'); // ✅ 追加
 
-                    const dupResults = [dup24, dup25, dup2026].filter(Boolean);
+                    const dupResults = [dup24, dup25, dup26].filter(Boolean); // ✅ dup2026削除
 
                     progress.textContent = `重複チェック中… ${i + 1} / ${targets.length}`;
 
@@ -435,7 +409,6 @@
                             record[F.addr2_place]  = { value: buildStreetViewUrl(geo2.latitude, geo2.longitude) };
                         }
                         // 重複詳細テキストを生成して書き込む
-                        // 例: 2024R 受付:1234　電話番号: 09012345678
                         const dupDetailLines = dupResults.map(r => {
                             const parts = [r.label];
                             if (r.hit.kana)  parts.push(`フリガナ: ${val(F.kana)}`);
@@ -448,11 +421,8 @@
 
                         updates.push({ id: recId, record });
 
-                        // 重複メッセージ蓄積（例: レコードID 123　電話番号/フリガナ）
                         dupMessages.push(`レコードID ${recId}　${cbValues.join('/')}　${dupDetailLines.join(' / ')}`);
                         dupCount++;
-
-                        // 重複レコードは比較対象に追加しない（OKでないので）
                         continue;
                     }
 
@@ -479,17 +449,6 @@
                         record[F.addr2_place]  = { value: buildStreetViewUrl(geo2.latitude, geo2.longitude) };
                     }
                     updates.push({ id: recId, record });
-
-                    // 処理済みを比較対象に動的追加（同バッチ内の重複も検出）
-                    checkedRecs.push({
-                        '$id':            { value: recId },
-                        [F.kana]:         { value: val(F.kana) },
-                        [F.bday]:         { value: val(F.bday) },
-                        [F.tel]:          { value: val(F.tel) },
-                        [F.addr1_normal]: { value: addr1Normal },
-                        [F.addr2_normal]: { value: addr2Normal },
-                    });
-
                     okCount++;
                 }
 
