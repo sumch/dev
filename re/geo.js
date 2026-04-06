@@ -349,7 +349,7 @@
                 const rows25 = parseCSV(csv25);
 
 // 該当レコード（受付番号70379）を探す
-const row = rows.find(r => r['受付番号'] === '70379');
+const row = rows25.find(r => r['受付番号'] === '70379');
 console.log('生データ:', row);
 console.log('ふりがな正規化後:', normalizeKana(row['申請者_ふりがな'] || ''));
 console.log('生年月日正規化後:', normalizeBday(row['生年月日'] || ''));
