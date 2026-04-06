@@ -348,14 +348,6 @@
                 const rows24 = parseCSV(csv24);
                 const rows25 = parseCSV(csv25);
 
-// 該当レコード（受付番号70379）を探す
-const row = rows25.find(r => r['受付番号'] === '70379');
-console.log('生データ:', row);
-console.log('ふりがな正規化後:', normalizeKana(row['申請者_ふりがな'] || ''));
-console.log('生年月日正規化後:', normalizeBday(row['生年月日'] || ''));
-console.log('target.kana:', target.kana);
-console.log('target.bday:', target.bday);
-
                 // Step 3: ジオコーディング（GEO_CONCURRENCY 件ずつ並列）
                 progress.textContent = `ジオコーディング中… 0 / ${targets.length}`;
                 const geoResults = new Array(targets.length);
