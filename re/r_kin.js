@@ -105,7 +105,7 @@ kintone.events.on("app.record.index.show", (event) => {
       if (!(record["重複自動チェック"].value[0] === "OK")) {
         const row = rows[index];
         if (row) {
-          row.style.backgroundColor = "#ee82ee"; // violet
+          row.style.backgroundColor = "#ffffe0"; // lightyellow
         }
       }
       }
