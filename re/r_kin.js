@@ -107,6 +107,12 @@ kintone.events.on("app.record.index.show", (event) => {
           row.style.backgroundColor = "#bdbdbd"; // グレーに変更
         }
       }
+      if (!record["重複自動チェック"].value.length > 0) {
+        const row = rows[index];
+        if (row) {
+          row.style.backgroundColor = "#ee82ee"; // violet
+        }
+      }
     });
   }, 100);
   return event;
