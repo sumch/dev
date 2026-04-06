@@ -99,7 +99,7 @@
                     var today = new Date();
                     today.setDate(today.getDate() + 14-1);
                     var day1 = state.record.着手予定日.value;
-                    const day2 = new Date('2027/3/16');
+                    const day2 = new Date('2027/3/15');
                     if (day1 < today ||  day2 < day1 ) {
                         return false;
                     } else {
@@ -112,7 +112,7 @@
                 validate: function(value, params) {
                     const today = state.record.交付決定日.value;
                     var day1 = state.record.着手日付.value;
-                    const day2 = new Date('2027/3/16');
+                    const day2 = new Date('2027/3/15');
                     if (day1 < today ||  day2 < day1 ) {
                         return false;
                     } else {
@@ -127,7 +127,7 @@
                     today.setDate(today.getDate() + 14-1);
                     var day0 = state.record.着手予定日.value;
                     var day1 = state.record.完了予定日.value;
-                    const day2 = new Date('2027/3/16');
+                    const day2 = new Date('2027/3/15');
                     if (day1 < today ||  day2 < day1  ||  day1 < day0 ) {
                         return false;
                     } else {
@@ -140,7 +140,7 @@
                 validate: function(value, params) {
                     const today = state.record.交付決定日.value;
                     var day1 = state.record.完了日付.value;
-                    const day2 = new Date('2027/3/16');
+                    const day2 = new Date('2027/3/15');
                     if (day1 < today ||  day2 < day1 ) {
                         return false;
                     } else {

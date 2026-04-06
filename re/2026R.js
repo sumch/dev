@@ -100,6 +100,9 @@ function txright(state) {
     tiright(state , 'E09');
     tiright(state , 'E10');
     tiright(state , 'E11');
+    tiright(state , 'E12');
+    tiright(state , 'E14');
+    tiright(state , 'E16');
     tiright(state , 'E18');
     tiright(state , 'E19');
 }
@@ -273,20 +276,26 @@ function calyen1(state) {
     sss['E09'] = state.record.E09.value;
     sss['E10'] = state.record.E10.value;
     sss['E11'] = state.record.E11.value;
-    var kE12 = state.record.E12外壁.value
-    if(!!kE12) {
-    var E12 = kE12.indexOf('E12');  if(E12 < 0) {sss['E12']=0;  state.record.E12.value = 0; } else {sss['E12']=1;  state.record.E12.value = 1; }
-    var E13 = kE12.indexOf('E13');  if(E13 < 0) {sss['E13']=0;  state.record.E13.value = 0; } else {sss['E13']=1;  state.record.E13.value = 1; }
-    }
-    var kE14 = state.record.E14屋根天井.value
-    if(!!kE14) {
-    var E14 = kE14.indexOf('E14');  if(E14 < 0) {sss['E14']=0;  state.record.E14.value = 0; } else {sss['E14']=1;  state.record.E14.value = 1; }
-    var E15 = kE14.indexOf('E15');  if(E15 < 0) {sss['E15']=0;  state.record.E15.value = 0; } else {sss['E15']=1;  state.record.E15.value = 1; }
-    }
-    var kE16 = state.record.E16床.value
-    if(!!kE16) {
-    var E16 = kE16.indexOf('E16');  if(E16 < 0) {sss['E16']=0;  state.record.E16.value = 0; } else {sss['E16']=1;  state.record.E16.value = 1; }
-    var E17 = kE16.indexOf('E17');  if(E17 < 0) {sss['E17']=0;  state.record.E17.value = 0; } else {sss['E17']=1;  state.record.E17.value = 1; }
+    if(false) {
+            var kE12 = state.record.E12外壁.value
+            if(!!kE12) {
+            var E12 = kE12.indexOf('E12');  if(E12 < 0) {sss['E12']=0;  state.record.E12.value = 0; } else {sss['E12']=1;  state.record.E12.value = 1; }
+            var E13 = kE12.indexOf('E13');  if(E13 < 0) {sss['E13']=0;  state.record.E13.value = 0; } else {sss['E13']=1;  state.record.E13.value = 1; }
+            }
+            var kE14 = state.record.E14屋根天井.value
+            if(!!kE14) {
+            var E14 = kE14.indexOf('E14');  if(E14 < 0) {sss['E14']=0;  state.record.E14.value = 0; } else {sss['E14']=1;  state.record.E14.value = 1; }
+            var E15 = kE14.indexOf('E15');  if(E15 < 0) {sss['E15']=0;  state.record.E15.value = 0; } else {sss['E15']=1;  state.record.E15.value = 1; }
+            }
+            var kE16 = state.record.E16床.value
+            if(!!kE16) {
+            var E16 = kE16.indexOf('E16');  if(E16 < 0) {sss['E16']=0;  state.record.E16.value = 0; } else {sss['E16']=1;  state.record.E16.value = 1; }
+            var E17 = kE16.indexOf('E17');  if(E17 < 0) {sss['E17']=0;  state.record.E17.value = 0; } else {sss['E17']=1;  state.record.E17.value = 1; }
+            }
+    } else {
+    sss['E12'] = state.record.E12.value;
+    sss['E14'] = state.record.E14.value;
+    sss['E16'] = state.record.E16.value;
     }
     sss['E18'] = state.record.E18.value;
     sss['E19'] = state.record.E19.value;
@@ -525,9 +534,12 @@ function kosodateexe(state) {
   fb.events.fields['E09'            ].changed = [function (state) {  calyen1(state);  }];
   fb.events.fields['E10'            ].changed = [function (state) {  calyen1(state);  }];
   fb.events.fields['E11'            ].changed = [function (state) {  calyen1(state);  }];
-  fb.events.fields['E12外壁'        ].changed = [function (state) {  calyen1(state);  }];
-  fb.events.fields['E14屋根天井'    ].changed = [function (state) {  calyen1(state);  }];
-  fb.events.fields['E16床'          ].changed = [function (state) {  calyen1(state);  }];
+  fb.events.fields['E12'            ].changed = [function (state) {  calyen1(state);  }];
+  fb.events.fields['E14'            ].changed = [function (state) {  calyen1(state);  }];
+  fb.events.fields['E16'            ].changed = [function (state) {  calyen1(state);  }];
+  //fb.events.fields['E12外壁'        ].changed = [function (state) {  calyen1(state);  }];
+  //fb.events.fields['E14屋根天井'    ].changed = [function (state) {  calyen1(state);  }];
+  //fb.events.fields['E16床'          ].changed = [function (state) {  calyen1(state);  }];
   fb.events.fields['E18'            ].changed = [function (state) {  calyen1(state);  }];
   fb.events.fields['E19'            ].changed = [function (state) {  calyen1(state);  }];
   fb.events.fields['工事費_B01'            ].changed = [function (state) {  calyen1(state);  }];
