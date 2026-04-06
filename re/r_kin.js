@@ -93,3 +93,21 @@ kintone.events.on(['app.record.detail.show'], function(event) {
   });
 });
 
+
+
+kintone.events.on("app.record.index.show", (event) => {
+  // HTMLが描画されるのを少し待つ
+  setTimeout(() => {
+    const rows = document.querySelectorAll("table.recordlist-gaia tbody tr");
+
+    event.records.forEach((record, index) => {
+      if (record["status"].value === "無効" || record["status"].value === "取消") {
+        const row = rows[index];
+        if (row) {
+          row.style.backgroundColor = "#bdbdbd"; // グレーに変更
+        }
+      }
+    });
+  }, 100);
+  return event;
+});
