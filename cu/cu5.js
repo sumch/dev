@@ -41,7 +41,29 @@ async function formshow_cu5(context) {
   var lot = getFiscalPeriodCode();
   context.setFieldValue('LOT', lot);
   
-  ahid2(context, 'sele10', true);
+  //登録可能期間
+  const url = 'https://f1762abc.viewer.kintoneapp.com/public/api/records/82e53c20f3f0d1cb83b7cbba66a82d9693ea062629a0cf180cfc8a3ce0097d1b/1';
+  await axios.get(url,  { }).then(response => {
+  // 一つでも期間内（start <= now <= end）があればtrue
+  const now = new Date();
+  const isAvailable = response.data.records.some(rd => {
+    const start = new Date(rd.start.value);
+    const end = new Date(rd.end.value);
+    return now >= start && now <= end;
+  });
+  if (isAvailable) {
+    ahid2(state, 'label1', true);
+  } else {
+    ahid2(state, 'label1', false);
+    //adis_all(state, false);
+      const fieldEl = document.querySelector('[data-field-code="' + fieldCode + '"]');
+      const titleEl = fieldEl.querySelector('.form-group-title, .field-title, label');
+      titleEl.textContent = response.data.records.label1.value;
+  }  
+  
+
+  
+  //ahid2(context, 'sele10', true);
 
   // --- q01〜q39 radioボタンのタイトルをAPIのstrで置き換え ---
   const API_URL = 'https://f1762abc.viewer.kintoneapp.com/public/api/records/2feaae2f724401ff0d7e3171a1b58d5f30fdef6eaddc39875b66290e80816dea/1';
