@@ -59,7 +59,7 @@ async function formshow_cu5(context) {
       //adis_all(state, false);
         const fieldEl = document.querySelector('[data-field-code="' + labelfc + '"]');
         const titleEl = fieldEl.querySelector('.flex');
-        titleEl.innerText = response.data.records.label1.value;
+        titleEl.innerText = response.data.records[0].label1.value;
     }  
   }).catch(response => console.log(response))
   
