@@ -58,7 +58,8 @@ async function formshow_cu5(context) {
       ahid2(context, labelfc, false);
       //adis_all(state, false);
         const fieldEl = document.querySelector('[data-field-code="' + labelfc + '"]');
-        const titleEl = fieldEl.querySelector('.lexical-html .wrap-break-word');
+        const titleEl = fieldEl.querySelector('.flex');
+        flex flex-col gap-1 px-4 md:px-0 fb-custom--field
         titleEl.textContent = response.data.records.label1.value;
     }  
   }).catch(response => console.log(response))
