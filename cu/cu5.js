@@ -37,7 +37,7 @@ const getFiscalPeriodCode = () => {
 };
 
 
-formBridge.events.on('form.show', async function (context) {
+async function formshow_cu5(context) {
   var lot = getFiscalPeriodCode();
   context.setFieldValue('LOT', lot);
   
@@ -78,7 +78,7 @@ formBridge.events.on('form.show', async function (context) {
   } catch (e) {
     console.error('[cu5] radioタイトル更新エラー:', e);
   }
-});
+}
 
 //整数、または小数点以下が1桁までの小数を許可する正規表現
 function validateDecimal1(value) {
