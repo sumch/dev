@@ -44,22 +44,24 @@ async function formshow_cu5(context) {
   //登録可能期間
   const url = 'https://f1762abc.viewer.kintoneapp.com/public/api/records/82e53c20f3f0d1cb83b7cbba66a82d9693ea062629a0cf180cfc8a3ce0097d1b/1';
   await axios.get(url,  { }).then(response => {
-  // 一つでも期間内（start <= now <= end）があればtrue
-  const now = new Date();
-  const isAvailable = response.data.records.some(rd => {
-    const start = new Date(rd.start.value);
-    const end = new Date(rd.end.value);
-    return now >= start && now <= end;
-  });
-  if (isAvailable) {
-    ahid2(state, 'label1', true);
-  } else {
-    ahid2(state, 'label1', false);
-    //adis_all(state, false);
-      const fieldEl = document.querySelector('[data-field-code="' + fieldCode + '"]');
-      const titleEl = fieldEl.querySelector('.form-group-title, .field-title, label');
-      titleEl.textContent = response.data.records.label1.value;
-  }  
+    // 一つでも期間内（start <= now <= end）があればtrue
+    const now = new Date();
+    const isAvailable = response.data.records.some(rd => {
+      const start = new Date(rd.start.value);
+      const end = new Date(rd.end.value);
+      return now >= start && now <= end;
+    });
+    const labelfc = 'label1';
+    if (isAvailable) {
+      ahid2(context, labelfc, true);
+    } else {
+      ahid2(context, labelfc, false);
+      //adis_all(state, false);
+        const fieldEl = document.querySelector('[data-field-code="' + labelfc + '"]');
+        const titleEl = fieldEl.querySelector('.form-group-title, .field-title, label');
+        titleEl.textContent = response.data.records.label1.value;
+    }  
+  }).catch(response => console.log(response))
   
 
   
@@ -147,12 +149,12 @@ validateDecimal1Fields.forEach(fc => {
  * @param {string} measureStr - 測定日 ('2024-04-01')
  * @returns {boolean} 範囲内なら true
  */
-const isTargetAgeRange = (birthStr, measureStr) => {
+const isTargetAgeRange = (birthStr, measure) => {
   if (!birthStr || !measureStr) return false;
 
   const birth = new Date(birthStr);
   //const measure = new Date(measureStr);
-  const measure = measureStr;
+  //const measure = measureStr;
 
   // 1. 満年齢（年）の計算
   let years = measure.getFullYear() - birth.getFullYear();
@@ -165,13 +167,13 @@ const isTargetAgeRange = (birthStr, measureStr) => {
   }
   
   // 日付の調整後の正確な月数（0〜11）
-  if (measure.getDate() < birth.getDate()) {
-    months--;
-    if (months < 0) {
-      // 0ヶ月未満になった場合は前月の扱いに調整
-      months = 11;
-    }
-  }
+  //if (measure.getDate() < birth.getDate()) {
+  //  months--;
+  //  if (months < 0) {
+  //    // 0ヶ月未満になった場合は前月の扱いに調整
+  //    months = 11;
+  //  }
+  //}
 
   // 2. 判定ロジック
   // 4歳0ヶ月(48ヶ月) 〜 6歳0ヶ月(72ヶ月)
