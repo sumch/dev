@@ -227,6 +227,6 @@ formBridge.events.on('form.field.change.bd', function(context) {
   //      context.setFieldValueError('bd', null);
   //} else {
   //      context.setFieldValueError('bd', '値を確認してください');
-  }
+  //}
 });
 
