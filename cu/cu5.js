@@ -64,6 +64,7 @@ async function formshow_cu5(context) {
     }  
   }).catch(response => console.log(response))
   
+  const record = formBridge.fn.getRecord();
 
   
   //ahid2(context, 'sele10', true);
