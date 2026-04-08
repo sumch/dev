@@ -37,13 +37,16 @@ const getFiscalPeriodCode = () => {
 };
 
 
+const bdstart;
+const bdend;
+
 async function formshow_cu5(context) {
   var lot = getFiscalPeriodCode();
   context.setFieldValue('LOT', lot);
   
-  //登録可能期間
   const url = 'https://f1762abc.viewer.kintoneapp.com/public/api/records/82e53c20f3f0d1cb83b7cbba66a82d9693ea062629a0cf180cfc8a3ce0097d1b/1';
   await axios.get(url,  { }).then(response => {
+    //登録可能期間
     // 一つでも期間内（start <= now <= end）があればtrue
     const now = new Date();
     const isAvailable = response.data.records.some(rd => {
@@ -64,6 +67,11 @@ async function formshow_cu5(context) {
         
         adis_all(context, true);
     }  
+    //登録可能誕生日
+    bdstart = response.data.records.bdstart.value;
+    bdend   = response.data.records.bdend.value;
+
+
   }).catch(response => console.log(response))
   
 
@@ -146,6 +154,7 @@ validateDecimal1Fields.forEach(fc => {
   });
 });
 
+
 /**
  * 年齢が4歳0ヶ月〜6歳0ヶ月の範囲内（両端を含む）かどうかを判定する
  * @param {string} birthStr - 生年月日 ('2020-04-01')
@@ -184,16 +193,40 @@ const isTargetAgeRange = (birthStr, measure) => {
 
   return totalMonths >= 48 && totalMonths <= 72;
 };
+/**
+   * 日付が指定された範囲内（両端含む）かどうかを判定する
+   * @param {string} targetDateStr - 判定対象の日付 ('2020-04-01')
+   * @param {string} startDateStr - 開始日
+   * @param {string} endDateStr - 終了日
+   * @returns {boolean} 範囲内なら true
+   */
+const isWithinDateRange = (targetDateStr, startDateStr, endDateStr) => {
+  if (!targetDateStr || !startDateStr || !endDateStr) return false;
+
+  const targetDate = new Date(targetDateStr).getTime();
+  const startDate = new Date(startDateStr).getTime();
+  const endDate = new Date(endDateStr).getTime();
+
+  // 無効な日付の場合は false
+  if (isNaN(targetDate) || isNaN(startDate) || isNaN(endDate)) return false;
+
+  // 範囲判定（開始日 <= 対象日 <= 終了日）
+  return targetDate >= startDate && targetDate <= endDate;
+};
 
 // --- 使用例 ---
 
 formBridge.events.on('form.field.change.bd', function(context) {
   var ts = context.value;
-  if(isTargetAgeRange(ts, new Date())) {
+  if(isWithinDateRange(ts, bdstart, bdend)) {
         context.setFieldValueError('bd', null);
   } else {
         context.setFieldValueError('bd', '値を確認してください');
   }
+  //if(isTargetAgeRange(ts, new Date())) {
+  //      context.setFieldValueError('bd', null);
+  //} else {
+  //      context.setFieldValueError('bd', '値を確認してください');
+  }
 });
-
 
