@@ -60,7 +60,7 @@ async function formshow_cu5(context) {
         const fieldEl = document.querySelector('[data-field-code="' + labelfc + '"]');
         const titleEl = fieldEl.querySelector('.flex');
         titleEl.innerText = response.data.records[0].label1.value;
-        titleEl.innerHTML = "<div class="lexical-html wrap-break-word"><span style="font-size: 20px; color: red;"><p class=""><br></p></span></div>"
+        titleEl.innerHTML = '<div class="lexical-html wrap-break-word"><span style="font-size: 20px; color: red;"><p class=""><br></p></span></div>'
     }  
   }).catch(response => console.log(response))
   
