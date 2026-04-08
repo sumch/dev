@@ -68,8 +68,8 @@ async function formshow_cu5(context) {
         adis_all(context, true);
     }  
     //登録可能誕生日
-    bdstart = response.data.records.bdstart.value;
-    bdend   = response.data.records.bdend.value;
+    bdstart = new Date(response.data.records.bdstart.value);
+    bdend   = new Date(response.data.records.bdend.value);
 
 
   }).catch(response => console.log(response))
