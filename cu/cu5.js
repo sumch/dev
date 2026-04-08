@@ -61,10 +61,14 @@ async function formshow_cu5(context) {
         const titleEl = fieldEl.querySelector('.flex');
         titleEl.innerText = response.data.records[0].label1.value;
         titleEl.innerHTML = '<div class="lexical-html wrap-break-word"><span style="font-size: 20px; color: red;"><p class=""><br></p></span></div>'
+        
+        const record = formBridge.fn.getRecord();
+        record.forEach(function(fieldCode) {
+          adis(context, fieldCode, true);
+        }
     }  
   }).catch(response => console.log(response))
   
-  const record = formBridge.fn.getRecord();
 
   
   //ahid2(context, 'sele10', true);
