@@ -63,8 +63,8 @@ async function formshow_cu5(context) {
         titleEl.innerHTML = '<div class="lexical-html wrap-break-word"><span style="font-size: 20px; color: red;"><p class=""><br></p></span></div>'
         
         const record = formBridge.fn.getRecord();
-        record.forEach(function(key ) {
-          adis(context, key , true);
+        Object.keys(record).forEach(function(fieldCode ) {
+          adis(context, fieldCode , true);
         });
     }  
   }).catch(response => console.log(response))
