@@ -65,7 +65,7 @@ async function formshow_cu5(context) {
         const record = formBridge.fn.getRecord();
         record.forEach(function(fieldCode) {
           adis(context, fieldCode, true);
-        }
+        });
     }  
   }).catch(response => console.log(response))
   
