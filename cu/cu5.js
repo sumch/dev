@@ -37,8 +37,8 @@ const getFiscalPeriodCode = () => {
 };
 
 
-const bdstart;
-const bdend;
+var bdstart;
+var bdend;
 
 async function formshow_cu5(context) {
   var lot = getFiscalPeriodCode();
