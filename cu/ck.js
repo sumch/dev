@@ -7,8 +7,8 @@
   const TARGET_FIELD_H = 'score';
   const AGE_DISPLAY_FIELD = '測定時年齢';
   const LOT_FIELD = 'LOT'; 
-  const CHECK_VALUE_H = 'H';
-  const COLOR_KEYS = ['pink', 'green', 'purple'];
+  const CHECK_VALUE_H = '身長';
+  const COLOR_KEYS = ['知的', '発達', '育児'];
 
   // --- ヘルパー関数群 ---
   const getAgeYM = (birthStr, measureStr) => {
