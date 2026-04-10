@@ -83,7 +83,7 @@
 
     const btn = document.createElement('button');
     btn.id = 'hm_button';
-    btn.innerHTML = 'HM (LOT選択)';
+    btn.innerHTML = '身長チェック(LOT選択)';
     btn.className = 'kintoneplugin-button-dialog-ok';
     btn.style.margin = '10px';
 
