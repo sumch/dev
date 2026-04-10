@@ -3,10 +3,12 @@
 
   const MASTER_HEIGHT_APP = 2402;
   const MASTER_SCORE_APP = 2231;
+  const MASTER_THRESHOLD_APP = 2407;  // 色閾値マスタ
   const TARGET_FIELD_H = 'score';
   const AGE_DISPLAY_FIELD = '測定時年齢';
   const LOT_FIELD = 'LOT'; 
   const CHECK_VALUE_H = 'H';
+  const COLOR_KEYS = ['pink', 'green', 'purple'];
 
   // --- ヘルパー関数群 ---
   const getAgeYM = (birthStr, measureStr) => {
@@ -39,7 +41,6 @@
   // --- プルダウンダイアログ生成関数 ---
   const showLotSelector = (lotOptions) => {
     return new Promise((resolve) => {
-      // ダイアログの作成
       const bg = document.createElement('div');
       bg.style = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; justify-content:center; align-items:center;';
       
@@ -50,7 +51,6 @@
       const select = document.createElement('select');
       select.style = 'width:100%; padding:8px; margin-bottom:20px;';
       
-      // 大きい順にソートして追加
       lotOptions.sort((a, b) => a > b ? -1 : 1).forEach(lot => {
         const opt = document.createElement('option');
         opt.value = lot;
@@ -108,16 +108,25 @@
 
         btn.innerHTML = '処理中...';
 
-        // 3. マスタ取得
-        const [heightResp, scoreResp] = await Promise.all([
+        // 3. マスタ取得（身長・スコア・色閾値）
+        const [heightResp, scoreResp, thresholdResp] = await Promise.all([
           kintone.api(kintone.api.url('/k/v1/records.json', true), 'GET', { app: MASTER_HEIGHT_APP, query: 'HW = "height"' }),
-          fetchAllRecords(MASTER_SCORE_APP)
+          fetchAllRecords(MASTER_SCORE_APP),
+          kintone.api(kintone.api.url('/k/v1/records.json', true), 'GET', { app: MASTER_THRESHOLD_APP, query: '$id > 0 limit 1' })
         ]);
 
         const heightMap = new Map();
         heightResp.records.forEach(r => heightMap.set(`${String(r.year.value).trim()}-${String(r.month.value).trim()}`, r));
         const scoreMap = new Map();
         scoreResp.forEach(r => scoreMap.set(r.fc.value, r));
+
+        // 色閾値の取得（固定1レコード）
+        const thresholdRecord = thresholdResp.records[0];
+        const colorThresholds = {
+          pink:   Number(thresholdRecord?.pink?.value   || 0),
+          green:  Number(thresholdRecord?.green?.value  || 0),
+          purple: Number(thresholdRecord?.purple?.value || 0),
+        };
 
         // 4. 計算・更新データ作成
         const updateArray = [];
@@ -166,9 +175,35 @@
               totalSum += point;
             }
           }
-          ['s1','s2','s3','s4','s5','s6'].forEach(k => { if(Number(rec[k]?.value || 0) !== s[k]) { recordUpdate[k] = {value: s[k]}; isChanged = true; }});
-          ['purple','green','pink'].forEach(k => { if(Number(rec[k]?.value || 0) !== colors[k]) { recordUpdate[k] = {value: colors[k]}; isChanged = true; }});
-          if(Number(rec['sum']?.value || 0) !== totalSum) { recordUpdate['sum'] = {value: totalSum}; isChanged = true; }
+
+          // s1〜s6・color合計・sum の数値フィールド更新
+          ['s1','s2','s3','s4','s5','s6'].forEach(k => {
+            if (Number(rec[k]?.value || 0) !== s[k]) { recordUpdate[k] = { value: s[k] }; isChanged = true; }
+          });
+          COLOR_KEYS.forEach(k => {
+            if (Number(rec[k]?.value || 0) !== colors[k]) { recordUpdate[k] = { value: colors[k] }; isChanged = true; }
+          });
+          if (Number(rec['sum']?.value || 0) !== totalSum) { recordUpdate['sum'] = { value: totalSum }; isChanged = true; }
+
+          // C: scoreチェックボックスへの pink / green / purple 反映
+          // (A処理後の最新checks状態を取得してから加工する)
+          let checks = (recordUpdate[TARGET_FIELD_H]?.value) ?? (rec[TARGET_FIELD_H].value || []);
+          let checksChanged = false;
+          COLOR_KEYS.forEach(colorKey => {
+            const meetsThreshold = colors[colorKey] >= colorThresholds[colorKey];
+            const hasFlag = checks.includes(colorKey);
+            if (meetsThreshold && !hasFlag) {
+              checks = [...checks, colorKey];
+              checksChanged = true;
+            } else if (!meetsThreshold && hasFlag) {
+              checks = checks.filter(v => v !== colorKey);
+              checksChanged = true;
+            }
+          });
+          if (checksChanged) {
+            recordUpdate[TARGET_FIELD_H] = { value: checks };
+            isChanged = true;
+          }
 
           if (isChanged) updateArray.push({ id: rec.$id.value, record: recordUpdate });
         });
