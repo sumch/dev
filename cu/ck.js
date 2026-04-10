@@ -189,7 +189,7 @@
         alert('エラーが発生しました。');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = 'HM (LOT選択)';
+        btn.innerHTML = '身長チェック(LOT選択)';
       }
     };
 
