@@ -8,6 +8,7 @@
   const AGE_DISPLAY_FIELD = '測定時年齢';
   const LOT_FIELD = 'LOT'; 
   const CHECK_VALUE_H = '身長';
+  const CHECK_VALUE_KAUP = 'カウプ指数';
   const COLOR_KEYS = ['知的', '発達', '育児'];
 
   // --- ヘルパー関数群 ---
@@ -83,7 +84,7 @@
 
     const btn = document.createElement('button');
     btn.id = 'hm_button';
-    btn.innerHTML = '身長チェック(LOT選択)';
+    btn.innerHTML = '更新(LOT選択)';
     btn.className = 'kintoneplugin-button-dialog-ok';
     btn.style.margin = '10px';
 
@@ -127,6 +128,9 @@
           green:  Number(thresholdRecord?.green?.value  || 0),
           purple: Number(thresholdRecord?.purple?.value || 0),
         };
+        // カウプ指数閾値（下限・上限）
+        const kaupLower = Number(thresholdRecord?.['下']?.value ?? NaN);
+        const kaupUpper = Number(thresholdRecord?.['上']?.value ?? NaN);
 
         // 4. 計算・更新データ作成
         const updateArray = [];
@@ -205,6 +209,36 @@
             isChanged = true;
           }
 
+          // D: カウプ指数の計算・保存・チェックボックス反映
+          const heightVal = parseFloat(rec['p07_1'].value);
+          const weightVal = parseFloat(rec['p07_2'].value);
+          if (!isNaN(heightVal) && !isNaN(weightVal) && heightVal > 0) {
+            const kaupIndex = weightVal / Math.pow(heightVal / 100, 2);
+            const kaupRounded = Math.round(kaupIndex * 10) / 10; // 小数点1桁に丸め
+
+            // カウプ指数フィールドへの書き込み
+            if (Number(rec['カウプ指数']?.value || 0) !== kaupRounded) {
+              recordUpdate['カウプ指数'] = { value: kaupRounded };
+              isChanged = true;
+            }
+
+            // 閾値チェック: 下限〜上限の範囲外なら "カウプ指数" をチェックボックスに追加
+            // checks は上記C処理後の最新状態を引き継ぐ
+            checks = (recordUpdate[TARGET_FIELD_H]?.value) ?? (rec[TARGET_FIELD_H].value || []);
+            const hasKaup = checks.includes(CHECK_VALUE_KAUP);
+            const isOutOfRange = (!isNaN(kaupLower) && kaupRounded < kaupLower)
+                              || (!isNaN(kaupUpper) && kaupRounded > kaupUpper);
+            if (isOutOfRange && !hasKaup) {
+              checks = [...checks, CHECK_VALUE_KAUP];
+              recordUpdate[TARGET_FIELD_H] = { value: checks };
+              isChanged = true;
+            } else if (!isOutOfRange && hasKaup) {
+              checks = checks.filter(v => v !== CHECK_VALUE_KAUP);
+              recordUpdate[TARGET_FIELD_H] = { value: checks };
+              isChanged = true;
+            }
+          }
+
           if (isChanged) updateArray.push({ id: rec.$id.value, record: recordUpdate });
         });
 
@@ -224,7 +258,7 @@
         alert('エラーが発生しました。');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '身長チェック(LOT選択)';
+        btn.innerHTML = '更新(LOT選択)';
       }
     };
 
