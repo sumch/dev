@@ -11,6 +11,18 @@
   const CHECK_VALUE_KAUP = 'カウプ指数';
   const COLOR_KEYS = ['知的', '発達', '育児'];
 
+  // 区コードマッピング（市町村区 → 区コード）
+  const KU_CODE_MAP = {
+    '新潟市北区':   '1',
+    '新潟市東区':   '2',
+    '新潟市中央区': '3',
+    '新潟市江南区': '4',
+    '新潟市秋葉区': '5',
+    '新潟市南区':   '6',
+    '新潟市西区':   '7',
+    '新潟市西蒲区': '8',
+  };
+
   // --- ヘルパー関数群 ---
   const getAgeYM = (birthStr, measureStr) => {
     if (!birthStr || !measureStr) return null;
@@ -237,6 +249,14 @@
               recordUpdate[TARGET_FIELD_H] = { value: checks };
               isChanged = true;
             }
+          }
+
+          // E: 区コードのセット（市町村区 ap12 → 区コード）
+          const ap12Val = rec['ap12']?.value ?? '';
+          const mappedCode = KU_CODE_MAP[ap12Val] ?? null;
+          if (mappedCode !== null && rec['区コード']?.value !== mappedCode) {
+            recordUpdate['区コード'] = { value: mappedCode };
+            isChanged = true;
           }
 
           if (isChanged) updateArray.push({ id: rec.$id.value, record: recordUpdate });
