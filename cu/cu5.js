@@ -24,13 +24,13 @@ const getFiscalPeriodCode = () => {
 
   if (month >= 3 && month <= 6) {
     // 3月〜6月
-    result = `${year}04`;
+    result = `${year}1`;
   } else if (month >= 7 && month <= 12) {
     // 7月〜12月
-    result = `${year}10`;
+    result = `${year}2`;
   } else {
     // 1月〜2月（前年の7月期扱いのため年を-1する）
-    result = `${year - 1}10`;
+    result = `${year - 1}2`;
   }
 
   return result;
