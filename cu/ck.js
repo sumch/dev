@@ -9,8 +9,14 @@
   const LOT_FIELD = 'LOT'; 
   const CHECK_VALUE_H = '身長';
   const CHECK_VALUE_KAUP = 'カウプ指数';
-  const COLOR_KEYS = ['pink', 'green', 'purple'];
-
+  //const COLOR_KEYS = ['pink', 'green', 'purple'];
+  //const COLOR_KEYS = ['知的', '発達', '育児'];
+  const COLOR_KEY_MAP = {
+    pink:   '知的',
+    green:  '発達',
+    purple: '育児',
+  };
+  const COLOR_KEYS = Object.keys(COLOR_KEY_MAP);
   // 区コードマッピング（市町村区 → 区コード）
   const KU_CODE_MAP = {
     '新潟市北区':   '1',
@@ -197,7 +203,9 @@
             if (Number(rec[k]?.value || 0) !== s[k]) { recordUpdate[k] = { value: s[k] }; isChanged = true; }
           });
           COLOR_KEYS.forEach(k => {
-            if (Number(rec[k]?.value || 0) !== colors[k]) { recordUpdate[k] = { value: colors[k] }; isChanged = true; }
+            //if (Number(rec[k]?.value || 0) !== colors[k]) { recordUpdate[k] = { value: colors[k] }; isChanged = true; }
+            const fieldCode = COLOR_KEY_MAP[k];
+            if (Number(rec[fieldCode]?.value || 0) !== colors[k]) { recordUpdate[fieldCode] = { value: colors[k] }; isChanged = true; }
           });
           if (Number(rec['sum']?.value || 0) !== totalSum) { recordUpdate['sum'] = { value: totalSum }; isChanged = true; }
 
@@ -205,14 +213,26 @@
           // (A処理後の最新checks状態を取得してから加工する)
           let checks = (recordUpdate[TARGET_FIELD_H]?.value) ?? (rec[TARGET_FIELD_H].value || []);
           let checksChanged = false;
+          //COLOR_KEYS.forEach(colorKey => {
+          //  const meetsThreshold = colors[colorKey] >= colorThresholds[colorKey];
+          //  const hasFlag = checks.includes(colorKey);
+          //  if (meetsThreshold && !hasFlag) {
+          //    checks = [...checks, colorKey];
+          //    checksChanged = true;
+          //  } else if (!meetsThreshold && hasFlag) {
+          //    checks = checks.filter(v => v !== colorKey);
+          //    checksChanged = true;
+          //  }
+          //});
           COLOR_KEYS.forEach(colorKey => {
+            const fieldCode = COLOR_KEY_MAP[colorKey];
             const meetsThreshold = colors[colorKey] >= colorThresholds[colorKey];
-            const hasFlag = checks.includes(colorKey);
+            const hasFlag = checks.includes(fieldCode);          // ← fieldCodeで判定
             if (meetsThreshold && !hasFlag) {
-              checks = [...checks, colorKey];
+              checks = [...checks, fieldCode];                   // ← fieldCodeで追加
               checksChanged = true;
             } else if (!meetsThreshold && hasFlag) {
-              checks = checks.filter(v => v !== colorKey);
+              checks = checks.filter(v => v !== fieldCode);      // ← fieldCodeで除去
               checksChanged = true;
             }
           });
