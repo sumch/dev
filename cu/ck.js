@@ -203,9 +203,7 @@
             if (Number(rec[k]?.value || 0) !== s[k]) { recordUpdate[k] = { value: s[k] }; isChanged = true; }
           });
           COLOR_KEYS.forEach(k => {
-            //if (Number(rec[k]?.value || 0) !== colors[k]) { recordUpdate[k] = { value: colors[k] }; isChanged = true; }
-            const fieldCode = COLOR_KEY_MAP[k];
-            if (Number(rec[fieldCode]?.value || 0) !== colors[k]) { recordUpdate[fieldCode] = { value: colors[k] }; isChanged = true; }
+            if (Number(rec[k]?.value || 0) !== colors[k]) { recordUpdate[k] = { value: colors[k] }; isChanged = true; }
           });
           if (Number(rec['sum']?.value || 0) !== totalSum) { recordUpdate['sum'] = { value: totalSum }; isChanged = true; }
 
@@ -224,15 +222,14 @@
           //    checksChanged = true;
           //  }
           //});
-          COLOR_KEYS.forEach(colorKey => {
-            const fieldCode = COLOR_KEY_MAP[colorKey];
-            const meetsThreshold = colors[colorKey] >= colorThresholds[colorKey];
-            const hasFlag = checks.includes(fieldCode);          // ← fieldCodeで判定
+          Object.entries(COLOR_KEY_MAP).forEach(([engKey, jpLabel]) => {
+            const meetsThreshold = colors[engKey] >= colorThresholds[engKey];
+            const hasFlag = checks.includes(jpLabel);        // チェックボックスは日本語
             if (meetsThreshold && !hasFlag) {
-              checks = [...checks, fieldCode];                   // ← fieldCodeで追加
+              checks = [...checks, jpLabel];
               checksChanged = true;
             } else if (!meetsThreshold && hasFlag) {
-              checks = checks.filter(v => v !== fieldCode);      // ← fieldCodeで除去
+              checks = checks.filter(v => v !== jpLabel);
               checksChanged = true;
             }
           });
