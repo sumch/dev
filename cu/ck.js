@@ -9,7 +9,7 @@
   const LOT_FIELD = 'LOT'; 
   const CHECK_VALUE_H = '身長';
   const CHECK_VALUE_KAUP = 'カウプ指数';
-  const COLOR_KEYS = ['知的', '発達', '育児'];
+  const COLOR_KEYS = ['pink', 'green', 'purple'];
 
   // 区コードマッピング（市町村区 → 区コード）
   const KU_CODE_MAP = {
