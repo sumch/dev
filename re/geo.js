@@ -32,6 +32,7 @@
         addr2_p2: 'ap222',
         addr2_p3: 'ap232',
         addr2_p4: 'ap242',
+        addr2_p5: 'ap252',  // 工事場所_住所_方書
 
         // --- 照合用フィールド ---
         kana:     'ap17f',  // 申請者_ふりがな
@@ -124,6 +125,104 @@
     }
 
     // =============================================================
+    // 番地正規化・集合住宅判定ユーティリティ
+    // =============================================================
+
+    // 全角数字・記号→半角
+    function toHankaku(str) {
+        return str
+            .replace(/[０-９]/g, m => String.fromCharCode(m.charCodeAt(0) - 0xFEE0))
+            .replace(/[－―‐]/g, '-');
+    }
+
+    // 番地文字列を正規化して xxx-xx 系の文字列を取り出す
+    // 例: "2丁目11-23"→"11-23"  "１丁目２番19号"→"2-19"  "甲5266-1"→"甲5266-1"
+    // "1-12-7シティタワー新潟2206"→"1-12-7"
+    function normalizeBanchi(str) {
+        if (!str) return '';
+        let s = toHankaku(str.trim());
+
+        // 丁目・番地・号 を - に統一（丁目は後で除去）
+        s = s.replace(/丁目/g, '-').replace(/番地/g, '-').replace(/番(?=[0-9\-])/g, '-').replace(/号/g, '');
+
+        // 先頭の「甲」「乙」「丙」等（漢字1字＋数字）はそのまま保持
+        // 先頭の丁目数字（例: "2-11-23" で先頭2が丁目由来）は除去
+        // ただし「甲」等で始まる場合は除去しない
+        // → 丁目変換後に先頭が 数字- になっており、その後に - が続く場合、先頭ブロックを除去
+        // 例: "2-11-23" → 丁目由来の先頭"2-"を除去 → "11-23"
+        // 例: "甲5266-1" → 先頭が漢字なので除去しない
+        // 例: "1-12-7" → 丁目なし・そのまま（比較は文字列全体）
+        if (/^[0-9]+-[0-9]+-/.test(s)) {
+            // x-xx-xx 形式：丁目由来の先頭ブロックを除去
+            s = s.replace(/^[0-9]+-/, '');
+        }
+
+        // 先頭から番地パターン（数字・ハイフン・甲乙等）を取り出し、建物名以降を捨てる
+        // パターン: 先頭に [甲乙丙丁]? + 数字とハイフンの並び
+        const m = s.match(/^([甲乙丙丁]?[0-9][0-9\-]*)/);
+        if (m) {
+            s = m[1].replace(/-+$/, ''); // 末尾ハイフン除去
+        } else {
+            s = s.replace(/-+$/, '');
+        }
+
+        return s;
+    }
+
+    // 方書から末尾の数字（部屋番号）を取り出す
+    // 例: "第二駅南ハイツ110" → "110"  "シティタワー新潟2206" → "2206"  "305号室" → "305"
+    function extractRoomNumber(str) {
+        if (!str) return '';
+        const m = str.match(/([0-9]+)[号室F階]?\s*$/);
+        return m ? m[1] : '';
+    }
+
+    // 工事場所の住所一致判定（level考慮）
+    // targetBanchi: normalizeBanchi済みの番地文字列
+    // targetKaoku:  方書文字列（生）
+    // targetLevel:  ジオコーディングのlevel（数値 or 文字列）
+    // rowBanchi:    CSV側 工事場所_住所_番地（xxx-xx形式前提）
+    // rowKaoku:     CSV側 工事場所_住所_方書
+    // rowAddr2:     CSV側 正規化住所2（従来の住所一致判定に使用）
+    // targetAddr2:  正規化住所2（従来）
+    function matchAddr2Enhanced(targetAddr2, targetBanchi, targetKaoku, targetLevel, rowAddr2, rowBanchi, rowKaoku) {
+        const level = parseInt(targetLevel, 10);
+
+        // level=7 の場合：正規化住所一致 かつ 番地一致 を要求
+        if (level === 7) {
+            if (!targetAddr2 || targetAddr2 !== rowAddr2) return false; // 正規化住所不一致
+            if (targetBanchi && rowBanchi) {
+                if (targetBanchi !== rowBanchi) return false; // 番地不一致→重複なし
+            }
+            // 方書あり（集合住宅）：部屋番号も比較
+            const hasKaoku = !!(targetKaoku && targetKaoku.trim());
+            const rowHasKaoku = !!(rowKaoku && rowKaoku.trim());
+            if (hasKaoku || rowHasKaoku) {
+                const room1 = extractRoomNumber(targetKaoku);
+                const room2 = extractRoomNumber(rowKaoku);
+                if (room1 && room2 && room1 !== room2) return false; // 部屋番号不一致
+            }
+            return true;
+        }
+
+        // level=8 の場合：正規化住所一致 かつ 方書あれば部屋番号比較
+        if (level === 8) {
+            if (!targetAddr2 || targetAddr2 !== rowAddr2) return false;
+            const hasKaoku = !!(targetKaoku && targetKaoku.trim());
+            const rowHasKaoku = !!(rowKaoku && rowKaoku.trim());
+            if (hasKaoku || rowHasKaoku) {
+                const room1 = extractRoomNumber(targetKaoku);
+                const room2 = extractRoomNumber(rowKaoku);
+                if (room1 && room2 && room1 !== room2) return false;
+            }
+            return true;
+        }
+
+        // それ以外：従来の正規化住所一致のみ
+        return !!(targetAddr2 && targetAddr2 === rowAddr2);
+    }
+
+    // =============================================================
     // ジオコーディング
     // =============================================================
 
@@ -209,13 +308,18 @@
     // （家族重複はaddr1/addr2フラグで表現）
     // =============================================================
 
-    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr1, rowAddr2) {
+    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr1, rowAddr2, rowBanchi2, rowKaoku2) {
         const mKana   = target.kana   && rowKana   === target.kana;
         const mFamily = target.family && rowFamily  === target.family;
         const mBday   = target.bday   && rowBday   === target.bday;
         const mTel    = target.tel    && rowTel    === target.tel;
         const mAddr1  = target.addr1  && (rowAddr1 === target.addr1 || rowAddr2 === target.addr1);
-        const mAddr2  = target.addr2  && (rowAddr1 === target.addr2 || rowAddr2 === target.addr2);
+
+        // 工事場所（addr2）はlevel考慮の強化判定
+        const mAddr2  = target.addr2  && matchAddr2Enhanced(
+            target.addr2, target.banchi2, target.kaoku2, target.level2,
+            rowAddr2, rowBanchi2, rowKaoku2
+        );
 
         const hit = {
             kana:  (mKana && mBday),                   // フリガナ+生年月日
@@ -233,9 +337,10 @@
     // CSVの正規化済み住所をそのまま使用
     // =============================================================
 
-    function checkDupInCSV(target, rows, yearLabel) {
+    function checkDupInCSV(target, rows, yearLabel, selfId) {
         for (const row of rows) {
             if (row.status !== '申請' && row.status !== '実績') continue;
+            if (selfId && row['受付番号'] && row['受付番号'] === selfId) continue; // 自レコードはスキップ
 
             const hit = detectDup(
                 target,
@@ -244,7 +349,9 @@
                 normalizeBday(row['生年月日'] || ''),
                 normalizeTel(row['申請者_電話番号'] || ''),
                 (row['正規化住所']  || '').trim(),
-                (row['正規化住所2'] || '').trim()
+                (row['正規化住所2'] || '').trim(),
+                (row['工事場所_住所_番地'] || '').trim(),  // CSV側番地（xxx-xx形式前提）
+                (row['工事場所_住所_方書'] || '').trim()   // CSV側方書
             );
 
             if (hit) return { label: `${yearLabel} 受付:${row['受付番号']}`, hit };
@@ -300,8 +407,8 @@
                     `${F.dupCheck} not in ("${CB.ok}","${CB.addr1}","${CB.addr2}","${CB.tel}","${CB.kana}")`,
                     [F.kana, F.bday, F.tel,
                      F.addr1_p1, F.addr1_p2, F.addr1_p3, F.addr1_p4,
-                     F.addr2_p1, F.addr2_p2, F.addr2_p3, F.addr2_p4,
-                     '$id']
+                     F.addr2_p1, F.addr2_p2, F.addr2_p3, F.addr2_p4, F.addr2_p5,
+                     '受付番号', '$id']
                 );
 
                 if (targets.length === 0) {
@@ -365,17 +472,20 @@
                     const addr2Normal = geo2 ? joinFullname(geo2.fullname) : '';
 
                     const target = {
-                        kana:   normalizeKana(val(F.kana)),
-                        family: getFamilyKana(val(F.kana)),
-                        bday:   normalizeBday(val(F.bday)),
-                        tel:    normalizeTel(val(F.tel)),
-                        addr1:  addr1Normal.trim(),
-                        addr2:  addr2Normal.trim(),
+                        kana:    normalizeKana(val(F.kana)),
+                        family:  getFamilyKana(val(F.kana)),
+                        bday:    normalizeBday(val(F.bday)),
+                        tel:     normalizeTel(val(F.tel)),
+                        addr1:   addr1Normal.trim(),
+                        addr2:   addr2Normal.trim(),
+                        banchi2: normalizeBanchi(val(F.addr2_p4)),   // 工事場所_住所_番地を正規化
+                        kaoku2:  val(F.addr2_p5),                    // 工事場所_住所_方書（生）
+                        level2:  geo2 ? geo2.level : '',             // ジオコーディングlevel
                     };
 
-                    const dup24 = checkDupInCSV(target, rows24, '2024R');
-                    const dup25 = checkDupInCSV(target, rows25, '2025R');
-                    const dup26 = checkDupInCSV(target, rows26, '2026R'); // ✅ 追加
+                    const dup24 = checkDupInCSV(target, rows24, '2024R', val('受付番号'));
+                    const dup25 = checkDupInCSV(target, rows25, '2025R', val('受付番号'));
+                    const dup26 = checkDupInCSV(target, rows26, '2026R', val('受付番号')); // ✅ 追加
 
                     const dupResults = [dup24, dup25, dup26].filter(Boolean); // ✅ dup2026削除
 
