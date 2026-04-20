@@ -26,6 +26,7 @@
         addr1_p2: 'ap12',
         addr1_p3: 'ap13',
         addr1_p4: 'ap14',
+        addr1_p5: 'ap15',  // 申請住所_方書
 
         // --- 工事場所 パーツ（ap212〜）---
         addr2_p1: 'ap212',
@@ -177,49 +178,33 @@
         return m ? m[1] : '';
     }
 
-    // 工事場所の住所一致判定（level考慮）
-    // targetBanchi: normalizeBanchi済みの番地文字列
-    // targetKaoku:  方書文字列（生）
-    // targetLevel:  ジオコーディングのlevel（数値 or 文字列）
-    // rowBanchi:    CSV側 工事場所_住所_番地（xxx-xx形式前提）
-    // rowKaoku:     CSV側 工事場所_住所_方書
-    // rowAddr2:     CSV側 正規化住所2（従来の住所一致判定に使用）
-    // targetAddr2:  正規化住所2（従来）
-    function matchAddr2Enhanced(targetAddr2, targetBanchi, targetKaoku, targetLevel, rowAddr2, rowBanchi, rowKaoku) {
-        const level = parseInt(targetLevel, 10);
+    // 住所一致判定（level非依存・addr1/addr2共通）
+    // 正規化住所一致を前提に、番地・方書を常に追加確認する
+    // - 番地：片方でも空なら不一致
+    // - 方書（集合住宅）：両方に方書があり部屋番号が取れる場合、番号不一致なら不一致
+    function matchAddrEnhanced(targetAddr, targetBanchi, targetKaoku, rowAddr, rowBanchi, rowKaoku) {
+        // 正規化住所が一致しなければ即不一致
+        if (!targetAddr || targetAddr !== rowAddr) return false;
 
-        // level=7 の場合：正規化住所一致 かつ 番地一致 を要求
-        if (level === 7) {
-            if (!targetAddr2 || targetAddr2 !== rowAddr2) return false; // 正規化住所不一致
-            if (targetBanchi && rowBanchi) {
-                if (targetBanchi !== rowBanchi) return false; // 番地不一致→重複なし
-            }
-            // 方書あり（集合住宅）：部屋番号も比較
-            const hasKaoku = !!(targetKaoku && targetKaoku.trim());
-            const rowHasKaoku = !!(rowKaoku && rowKaoku.trim());
-            if (hasKaoku || rowHasKaoku) {
-                const room1 = extractRoomNumber(targetKaoku);
-                const room2 = extractRoomNumber(rowKaoku);
-                if (room1 && room2 && room1 !== room2) return false; // 部屋番号不一致
-            }
-            return true;
+        // 番地比較：片方でも空なら不一致
+        if (!targetBanchi || !rowBanchi) return false;
+        if (targetBanchi !== rowBanchi) return false;
+
+        // 方書（集合住宅）比較
+        const hasKaoku    = !!(targetKaoku && targetKaoku.trim());
+        const rowHasKaoku = !!(rowKaoku    && rowKaoku.trim());
+
+        if (hasKaoku !== rowHasKaoku) return false; // 片方だけ方書あり→戸建てvs集合住宅→不一致
+
+        if (hasKaoku && rowHasKaoku) {
+            // 両方方書あり：部屋番号が取れて異なれば不一致
+            const room1 = extractRoomNumber(targetKaoku);
+            const room2 = extractRoomNumber(rowKaoku);
+            if (room1 && room2 && room1 !== room2) return false;
         }
+        // 両方方書なし：番地一致で確定
 
-        // level=8 の場合：正規化住所一致 かつ 方書あれば部屋番号比較
-        if (level === 8) {
-            if (!targetAddr2 || targetAddr2 !== rowAddr2) return false;
-            const hasKaoku = !!(targetKaoku && targetKaoku.trim());
-            const rowHasKaoku = !!(rowKaoku && rowKaoku.trim());
-            if (hasKaoku || rowHasKaoku) {
-                const room1 = extractRoomNumber(targetKaoku);
-                const room2 = extractRoomNumber(rowKaoku);
-                if (room1 && room2 && room1 !== room2) return false;
-            }
-            return true;
-        }
-
-        // それ以外：従来の正規化住所一致のみ
-        return !!(targetAddr2 && targetAddr2 === rowAddr2);
+        return true;
     }
 
     // =============================================================
@@ -308,16 +293,21 @@
     // （家族重複はaddr1/addr2フラグで表現）
     // =============================================================
 
-    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr1, rowAddr2, rowBanchi2, rowKaoku2) {
+    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr1, rowAddr2, rowBanchi1, rowKaoku1, rowBanchi2, rowKaoku2) {
         const mKana   = target.kana   && rowKana   === target.kana;
         const mFamily = target.family && rowFamily  === target.family;
         const mBday   = target.bday   && rowBday   === target.bday;
         const mTel    = target.tel    && rowTel    === target.tel;
-        const mAddr1  = target.addr1  && (rowAddr1 === target.addr1 || rowAddr2 === target.addr1);
 
-        // 工事場所（addr2）はlevel考慮の強化判定
-        const mAddr2  = target.addr2  && matchAddr2Enhanced(
-            target.addr2, target.banchi2, target.kaoku2, target.level2,
+        // 申請住所：正規化住所＋番地＋方書で強化判定
+        const mAddr1  = target.addr1  && matchAddrEnhanced(
+            target.addr1, target.banchi1, target.kaoku1,
+            rowAddr1, rowBanchi1, rowKaoku1
+        );
+
+        // 工事場所：正規化住所＋番地＋方書で強化判定
+        const mAddr2  = target.addr2  && matchAddrEnhanced(
+            target.addr2, target.banchi2, target.kaoku2,
             rowAddr2, rowBanchi2, rowKaoku2
         );
 
@@ -350,8 +340,10 @@
                 normalizeTel(row['申請者_電話番号'] || ''),
                 (row['正規化住所']  || '').trim(),
                 (row['正規化住所2'] || '').trim(),
-                (row['工事場所_住所_番地'] || '').trim(),  // CSV側番地（xxx-xx形式前提）
-                (row['工事場所_住所_方書'] || '').trim()   // CSV側方書
+                (row['申請者_住所_番地'] || '').trim(),   // CSV側 申請住所_番地
+                (row['申請者_住所_方書'] || '').trim(),   // CSV側 申請住所_方書
+                (row['工事場所_住所_番地'] || '').trim(), // CSV側 工事場所_番地
+                (row['工事場所_住所_方書'] || '').trim()  // CSV側 工事場所_方書
             );
 
             if (hit) return { label: `${yearLabel} 受付:${row['受付番号']}`, hit };
@@ -406,7 +398,7 @@
                     // OK も重複系選択肢も何もチェックされていないものが対象
                     `${F.dupCheck} not in ("${CB.ok}","${CB.addr1}","${CB.addr2}","${CB.tel}","${CB.kana}")`,
                     [F.kana, F.bday, F.tel,
-                     F.addr1_p1, F.addr1_p2, F.addr1_p3, F.addr1_p4,
+                     F.addr1_p1, F.addr1_p2, F.addr1_p3, F.addr1_p4, F.addr1_p5,
                      F.addr2_p1, F.addr2_p2, F.addr2_p3, F.addr2_p4, F.addr2_p5,
                      '受付番号', '$id']
                 );
@@ -478,9 +470,10 @@
                         tel:     normalizeTel(val(F.tel)),
                         addr1:   addr1Normal.trim(),
                         addr2:   addr2Normal.trim(),
+                        banchi1: normalizeBanchi(val(F.addr1_p4)),   // 申請住所_丁目番地号を正規化
+                        kaoku1:  val(F.addr1_p5),                    // 申請住所_方書（生）
                         banchi2: normalizeBanchi(val(F.addr2_p4)),   // 工事場所_住所_番地を正規化
                         kaoku2:  val(F.addr2_p5),                    // 工事場所_住所_方書（生）
-                        level2:  geo2 ? geo2.level : '',             // ジオコーディングlevel
                     };
 
                     const dup24 = checkDupInCSV(target, rows24, '2024R', val('受付番号'));
