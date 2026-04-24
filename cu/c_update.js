@@ -6,7 +6,7 @@
     // =============================================================
     const GEOCODE_BASE_URL = 'https://cityniigata.com/geo/tr.php/geocode?opts=all&';
     const HOKENSHI_APP_ID  = 2417;
-    const GEO_CONCURRENCY  = 1;   // 並列ジオコーディング数
+    const GEO_CONCURRENCY  = 5;   // 並列ジオコーディング数
 
     // フィールドコード（現アプリ）
     const F = {
@@ -44,6 +44,41 @@
     function replaceSpecialKanji(str) {
         if (!str) return '';
         return str.replace(/\u9C73/g, '\u9C38').trim(); // 魲→鱸
+    }
+
+    // 新潟市8区（区名のみで新潟市が付いていない場合に補完）
+    const NIIGATA_8KU = ['北区', '東区', '中央区', '江南区', '秋葉区', '南区', '西区', '西蒲区'];
+
+    /**
+     * 住所パーツ（pref/city/town/banchi）を結合して位置用住所を生成
+     *  - city が新潟市8区名のみ → "新潟市" を前置
+     *  - パーツ連結時、前パーツ末尾が数字・後パーツ先頭が数字 → "-" を挿入
+     */
+    function buildAddrInput(pref, city, town, banchi) {
+        // 新潟市補完
+        let cityFixed = city;
+        if (NIIGATA_8KU.includes(city.trim())) {
+            cityFixed = '新潟市' + city.trim();
+        }
+
+        const parts = [pref, cityFixed, town, banchi].map(s => s || '');
+
+        // 数字境界ハイフン挿入しながら連結
+        const DIGIT_LIKE = /[\d０-９]/; // 半角・全角数字
+        let result = '';
+        for (const part of parts) {
+            if (!part) continue;
+            if (
+                result &&
+                DIGIT_LIKE.test(result[result.length - 1]) &&
+                DIGIT_LIKE.test(part[0])
+            ) {
+                result += '-';
+            }
+            result += part;
+        }
+
+        return result.replace(/[\s　]/g, ''); // 空白除去
     }
 
     function joinFullname(fullname) {
@@ -186,8 +221,7 @@
                     const chunkGeo = await Promise.all(chunk.map(rec => {
                         const v = code => (rec[code] ? rec[code].value : '') || '';
                         const rawAddr = replaceSpecialKanji(
-                            [v(F.pref), v(F.city), v(F.town), v(F.banchi)]
-                                .join('').replace(/[\s　]/g, '')
+                            buildAddrInput(v(F.pref), v(F.city), v(F.town), v(F.banchi))
                         );
                         return geocodeAddress(rawAddr).then(geo => ({ geo, rawAddr }));
                     }));
