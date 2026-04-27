@@ -125,52 +125,7 @@
         return s;
     }
 
-    // =============================================================
-    // 番地正規化・集合住宅判定ユーティリティ
-    // =============================================================
-
-    // 全角数字・記号→半角
-    function toHankaku(str) {
-        return str
-            .replace(/[０-９]/g, m => String.fromCharCode(m.charCodeAt(0) - 0xFEE0))
-            .replace(/[－―‐]/g, '-');
-    }
-
-    // 番地文字列を正規化して xxx-xx 系の文字列を取り出す
-    // 例: "2丁目11-23"→"11-23"  "１丁目２番19号"→"2-19"  "甲5266-1"→"甲5266-1"
-    // "1-12-7シティタワー新潟2206"→"1-12-7"
-    function normalizeBanchi(str) {
-        if (!str) return '';
-        let s = toHankaku(str.trim());
-
-        // 丁目・番地・号 を - に統一（丁目は後で除去）
-        s = s.replace(/丁目/g, '-').replace(/番地/g, '-').replace(/番(?=[0-9\-])/g, '-').replace(/号/g, '');
-
-        // 先頭の「甲」「乙」「丙」等（漢字1字＋数字）はそのまま保持
-        // 先頭の丁目数字（例: "2-11-23" で先頭2が丁目由来）は除去
-        // ただし「甲」等で始まる場合は除去しない
-        // → 丁目変換後に先頭が 数字- になっており、その後に - が続く場合、先頭ブロックを除去
-        // 例: "2-11-23" → 丁目由来の先頭"2-"を除去 → "11-23"
-        // 例: "甲5266-1" → 先頭が漢字なので除去しない
-        // 例: "1-12-7" → 丁目なし・そのまま（比較は文字列全体）
-        if (/^[0-9]+-[0-9]+-/.test(s)) {
-            // x-xx-xx 形式：丁目由来の先頭ブロックを除去
-            s = s.replace(/^[0-9]+-/, '');
-        }
-
-        // 先頭から番地パターン（数字・ハイフン・甲乙等）を取り出し、建物名以降を捨てる
-        // パターン: 先頭に [甲乙丙丁]? + 数字とハイフンの並び
-        const m = s.match(/^([甲乙丙丁]?[0-9][0-9\-]*)/);
-        if (m) {
-            s = m[1].replace(/-+$/, ''); // 末尾ハイフン除去
-        } else {
-            s = s.replace(/-+$/, '');
-        }
-
-        return s;
-    }
-
-    // 方書から末尾の数字（部屋番号）を取り出す
+    // 方書から末尾の部屋番号を取り出す
     // 例: "第二駅南ハイツ110" → "110"  "シティタワー新潟2206" → "2206"  "305号室" → "305"
     function extractRoomNumber(str) {
         if (!str) return '';
@@ -178,23 +133,19 @@
         return m ? m[1] : '';
     }
 
-    // 住所一致判定（level非依存・addr1/addr2共通）
-    // 正規化住所一致を前提に、番地・方書を常に追加確認する
-    // - 番地：片方でも空なら不一致
-    // - 方書（集合住宅）：両方に方書があり部屋番号が取れる場合、番号不一致なら不一致
-    function matchAddrEnhanced(targetAddr, targetBanchi, targetKaoku, rowAddr, rowBanchi, rowKaoku) {
-        // 正規化住所が一致しなければ即不一致
-        if (!targetAddr || targetAddr !== rowAddr) return false;
+    // 住所一致判定
+    // - level=5以上のみ判定対象（level<=4は番地未解決のため判定外）
+    // - 正規化住所はジオコーダー結果をそのまま比較
+    // - 方書がある場合（集合住宅）は部屋番号も比較する
+    function matchAddr(targetAddr, targetLevel, rowAddr, targetKaoku, rowKaoku) {
+        if (!targetAddr || Number(targetLevel) <= 4) return false;
+        if (targetAddr !== rowAddr) return false;
 
-        // 番地比較：片方でも空なら不一致
-        if (!targetBanchi || !rowBanchi) return false;
-        if (targetBanchi !== rowBanchi) return false;
-
-        // 方書（集合住宅）比較
         const hasKaoku    = !!(targetKaoku && targetKaoku.trim());
         const rowHasKaoku = !!(rowKaoku    && rowKaoku.trim());
 
-        if (hasKaoku !== rowHasKaoku) return false; // 片方だけ方書あり→戸建てvs集合住宅→不一致
+        // 片方だけ方書あり → 戸建て vs 集合住宅 → 不一致
+        if (hasKaoku !== rowHasKaoku) return false;
 
         if (hasKaoku && rowHasKaoku) {
             // 両方方書あり：部屋番号が取れて異なれば不一致
@@ -202,7 +153,6 @@
             const room2 = extractRoomNumber(rowKaoku);
             if (room1 && room2 && room1 !== room2) return false;
         }
-        // 両方方書なし：番地一致で確定
 
         return true;
     }
@@ -232,6 +182,22 @@
             console.error('geocodeAddress error:', e);
             return null;
         }
+    }
+
+    // 住所パーツを結合する
+    // 隣り合うパーツの境界が「数字で終わる」「数字で始まる」場合はハイフンを挿入
+    // 例: ["本町通８", "１３６２ー３"] → "本町通８-１３６２ー３"
+    function joinAddrParts(parts) {
+        return parts
+            .filter(p => p)
+            .reduce((acc, cur) => {
+                if (!acc) return cur;
+                const lastChar = acc.slice(-1);
+                const firstChar = cur.charAt(0);
+                const endsWithDigit   = /[0-9０-９]/.test(lastChar);
+                const startsWithDigit = /[0-9０-９]/.test(firstChar);
+                return acc + (endsWithDigit && startsWithDigit ? '-' : '') + cur;
+            }, '');
     }
 
     function joinFullname(fullname) {
@@ -293,23 +259,17 @@
     // （家族重複はaddr1/addr2フラグで表現）
     // =============================================================
 
-    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr1, rowAddr2, rowBanchi1, rowKaoku1, rowBanchi2, rowKaoku2) {
+    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr, rowKaoku, rowLevel) {
         const mKana   = target.kana   && rowKana   === target.kana;
         const mFamily = target.family && rowFamily  === target.family;
         const mBday   = target.bday   && rowBday   === target.bday;
         const mTel    = target.tel    && rowTel    === target.tel;
 
-        // 申請住所：正規化住所＋番地＋方書で強化判定
-        const mAddr1  = target.addr1  && matchAddrEnhanced(
-            target.addr1, target.banchi1, target.kaoku1,
-            rowAddr1, rowBanchi1, rowKaoku1
-        );
+        // kintoneの申請住所 vs CSVの住所（工事場所）
+        const mAddr1  = target.addr1  && matchAddr(target.addr1, target.level1, rowAddr, target.kaoku1, rowKaoku);
 
-        // 工事場所：正規化住所＋番地＋方書で強化判定
-        const mAddr2  = target.addr2  && matchAddrEnhanced(
-            target.addr2, target.banchi2, target.kaoku2,
-            rowAddr2, rowBanchi2, rowKaoku2
-        );
+        // kintoneの工事場所 vs CSVの住所（工事場所）
+        const mAddr2  = target.addr2  && matchAddr(target.addr2, target.level2, rowAddr, target.kaoku2, rowKaoku);
 
         const hit = {
             kana:  (mKana && mBday),                   // フリガナ+生年月日
@@ -338,12 +298,9 @@
                 getFamilyKana(row['申請者_ふりがな'] || ''),
                 normalizeBday(row['生年月日'] || ''),
                 normalizeTel(row['申請者_電話番号'] || ''),
-                (row['正規化住所']  || '').trim(),
-                (row['正規化住所2'] || '').trim(),
-                (row['申請者_住所_番地'] || '').trim(),   // CSV側 申請住所_番地
-                (row['申請者_住所_方書'] || '').trim(),   // CSV側 申請住所_方書
-                (row['工事場所_住所_番地'] || '').trim(), // CSV側 工事場所_番地
-                (row['工事場所_住所_方書'] || '').trim()  // CSV側 工事場所_方書
+                (row['正規化住所'] || '').trim(),            // CSV側 工事場所_正規化住所
+                (row['工事場所_住所_方書'] || '').trim(),    // CSV側 工事場所_方書
+                Number(row['level'] || 0)                    // CSV側 工事場所_level
             );
 
             if (hit) return { label: `${yearLabel} 受付:${row['受付番号']}`, hit };
@@ -430,13 +387,18 @@
                     const chunkGeo = await Promise.all(chunk.map(rec => {
                         const val = v => (rec[v] ? rec[v].value : '') || '';
 
-                        // 位置用住所: ap11 & ap12 & ap13 & ap14 を結合しスペース除去
-                        const addr1 = [val(F.addr1_p1), val(F.addr1_p2), val(F.addr1_p3), val(F.addr1_p4)]
-                            .join('').replace(/[\s　]/g, '');
+                        // 位置用住所: ap11 & ap12 & ap13 & ap14 を結合
+                        // パーツ境界が数字同士の場合はハイフンを挿入
+                        const addr1 = joinAddrParts(
+                            [val(F.addr1_p1), val(F.addr1_p2), val(F.addr1_p3), val(F.addr1_p4)]
+                            .map(p => p.replace(/[\s　]/g, ''))
+                        );
 
-                        // 位置用住所2: ap212 & ap222 & ap232 & ap242 を結合しスペース除去
-                        const addr2 = [val(F.addr2_p1), val(F.addr2_p2), val(F.addr2_p3), val(F.addr2_p4)]
-                            .join('').replace(/[\s　]/g, '');
+                        // 位置用住所2: ap212 & ap222 & ap232 & ap242 を結合
+                        const addr2 = joinAddrParts(
+                            [val(F.addr2_p1), val(F.addr2_p2), val(F.addr2_p3), val(F.addr2_p4)]
+                            .map(p => p.replace(/[\s　]/g, ''))
+                        );
 
                         return Promise.all([
                             geocodeAddress(addr1),
@@ -470,10 +432,10 @@
                         tel:     normalizeTel(val(F.tel)),
                         addr1:   addr1Normal.trim(),
                         addr2:   addr2Normal.trim(),
-                        banchi1: normalizeBanchi(val(F.addr1_p4)),   // 申請住所_丁目番地号を正規化
-                        kaoku1:  val(F.addr1_p5),                    // 申請住所_方書（生）
-                        banchi2: normalizeBanchi(val(F.addr2_p4)),   // 工事場所_住所_番地を正規化
-                        kaoku2:  val(F.addr2_p5),                    // 工事場所_住所_方書（生）
+                        level1:  geo1 ? Number(geo1.level) : 0,  // 申請住所_ジオコードlevel
+                        kaoku1:  val(F.addr1_p5),                   // 申請住所_方書
+                        level2:  geo2 ? Number(geo2.level) : 0,  // 工事場所_ジオコードlevel
+                        kaoku2:  val(F.addr2_p5),                // 工事場所_住所_方書
                     };
 
                     const dup24 = checkDupInCSV(target, rows24, '2024R', val('受付番号'));
