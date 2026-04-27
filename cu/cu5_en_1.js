@@ -30,47 +30,47 @@ const EN_QUESTIONS = [
   { fc: 'q39', fc_en: 'q21', str: '集団生活では、友達と一緒に遊んだり、行動することができますか' },
 ];
 
-// kv.php のベースURL（CORS許可済みであること）
-// kv.php 先頭に以下を追加してください：
-//   header('Access-Control-Allow-Origin: https://42afd41c.form.kintoneapp.com');
-const KV_URL = 'https://cityniigata.com/cu/ra/kv.php?id=2230';
+// id=2230 のレコードをあらかじめ読み込んでおくキャッシュ
+let _kvCache = null;
+
+/**
+ * kv.php から id=2230 のデータを取得してキャッシュに保存
+ */
+async function preloadKv2230() {
+  try {
+    const res = await fetch('https://cityniigata.com/cu/ra/kv.php?id=2230');
+    if (!res.ok) throw new Error('kv fetch failed: ' + res.status);
+    _kvCache = await res.json();
+  } catch (e) {
+    console.error('[cu5_en] kv preload error:', e);
+    _kvCache = null;
+  }
+}
 
 /**
  * 受付番号フィールドの変更イベント
- * 6桁入力完了時に kv.php を axios で取得し、受付番号が一致したレコードのフィールドをコピーする
- * ※ CORSエラーが出る場合は kv.php に Access-Control-Allow-Origin ヘッダーを追加してください
+ * 入力された6桁と kv データの受付番号を照合し、一致したらフィールドをコピーする
  */
 function setupUketsukeBango(context) {
-  formBridge.events.on('form.field.change.受付番号', async function(ctx) {
+  formBridge.events.on('form.field.change.受付番号', function(ctx) {
     const input = String(ctx.value || '').trim();
+    if (!_kvCache) return;
 
-    // 6桁入力されたときだけ照合
-    if (input.length !== 6) return ctx;
-
-    let records;
-    try {
-      const response = await axios.get(KV_URL, { withCredentials: true });
-      // レスポンスが配列 or { records: [...] } 両対応
-      records = Array.isArray(response.data)
-        ? response.data
-        : (response.data.records || [response.data]);
-    } catch (e) {
-      console.error('[cu5_en] kv fetch error:', e);
-      return ctx;
-    }
-
-    const matched = records.find(r =>
-      String(r['受付番号'] || '').trim() === input
-    );
+    // レスポンスが配列の場合・オブジェクトの場合両方に対応
+    const records = Array.isArray(_kvCache) ? _kvCache : (_kvCache.records || [_kvCache]);
+    const matched = records.find(r => {
+      const uketsuke = String(r['受付番号'] || r.uketsukeNo || '').trim();
+      return uketsuke === input;
+    });
 
     if (matched) {
-      // コピー対象フィールド一覧
-      const copyFields = ['LOT', 'p01_1', 'ap17f', 'bd', 'p04_1', 'p06_2'];
-      copyFields.forEach(function(fc) {
-        if (matched[fc] !== undefined && matched[fc] !== '') {
-          ctx.setFieldValue(fc, matched[fc]);
-        }
-      });
+      // 一致した場合、各フィールドをコピー
+      if (matched['LOT']   !== undefined) ctx.setFieldValue('LOT',   matched['LOT']);
+      if (matched['p01_1'] !== undefined) ctx.setFieldValue('p01_1', matched['p01_1']);
+      if (matched['ap17f'] !== undefined) ctx.setFieldValue('ap17f', matched['ap17f']);
+      if (matched['bd']    !== undefined) ctx.setFieldValue('bd',    matched['bd']);
+      if (matched['p04_1'] !== undefined) ctx.setFieldValue('p04_1', matched['p04_1']);
+      if (matched['p06_2'] !== undefined) ctx.setFieldValue('p06_2', matched['p06_2']);
     }
     return ctx;
   });
@@ -152,6 +152,8 @@ function setupQuestions() {
  * main_en.js から呼ばれるエントリーポイント
  */
 async function formshow_cu5_en(context) {
+  // kv データを事前読み込み（非同期、完了を待つ）
+  await preloadKv2230();
 
   // 受付番号の照合イベントをセット
   setupUketsukeBango(context);
