@@ -24,8 +24,44 @@ const EN_QUESTIONS = [
   { fc: 'q39', fc_en: 'q21', str: '集団生活では、友達と一緒に遊んだり、行動することができますか' },
 ];
 
-// 現在フォーカス中の質問インデックス（-1=未選択）
+// 現在アクティブな質問インデックス
 let _currentIdx = -1;
+
+// fieldset の常時枠表示＋アクティブハイライト用CSS
+(function() {
+  const style = document.createElement('style');
+  style.textContent = `
+    [data-field-code] fieldset[tabindex] {
+      outline: none !important;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      padding: 4px 8px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    [data-field-code] fieldset[tabindex].fb-active {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+// アクティブなfieldsetをハイライト
+function setActiveFieldset(idx) {
+  EN_QUESTIONS.forEach(function(q) {
+    const el = document.querySelector('[data-field-code="' + q.fc + '"]');
+    if (!el) return;
+    const fs = el.querySelector('fieldset[tabindex]');
+    if (fs) fs.classList.remove('fb-active');
+  });
+  if (idx >= 0 && idx < EN_QUESTIONS.length) {
+    const el = document.querySelector('[data-field-code="' + EN_QUESTIONS[idx].fc + '"]');
+    if (el) {
+      const fs = el.querySelector('fieldset[tabindex]');
+      if (fs) fs.classList.add('fb-active');
+    }
+  }
+}
 
 function focusNext(idx) {
   const next = EN_QUESTIONS[idx + 1];
@@ -33,18 +69,14 @@ function focusNext(idx) {
   const nextEl = document.querySelector('[data-field-code="' + next.fc + '"]');
   if (!nextEl) return;
   _currentIdx = idx + 1;
-  // fieldsetをフォーカス可能にしてフォーカスを当てる
+  setActiveFieldset(_currentIdx);
   const fieldset = nextEl.querySelector('fieldset');
-  if (fieldset) {
-    fieldset.focus();
-  } else {
-    nextEl.focus();
-  }
+  if (fieldset) fieldset.focus();
+  else nextEl.focus();
   nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function selectValue(fieldEl, value) {
-  // hidden inputではなく、対応するlabel要素をクリックする
   const labels = fieldEl.querySelectorAll('fieldset label');
   labels.forEach(function(label) {
     const input = label.querySelector('input[type="radio"]');
@@ -65,29 +97,32 @@ function setupQuestions() {
       titleEl.textContent = (idx + 1) + '. ' + q.str;
     }
 
-    // fieldset にtabindex付与してフォーカス可能にする
+    // fieldsetにtabindex付与
     const fieldset = fieldEl.querySelector('fieldset');
     if (fieldset) {
       fieldset.setAttribute('tabindex', '0');
-
-      // fieldsetにフォーカスが当たったら _currentIdx を更新
       fieldset.addEventListener('focus', function() {
         _currentIdx = idx;
+        setActiveFieldset(idx);
+      });
+      // blurしても枠は消えない（fb-activeはsetActiveFieldsetで管理）
+      fieldset.addEventListener('blur', function() {
+        // 何もしない：枠は残す
       });
     }
 
-    // labelクリック時に次へ移動（クリックによる選択）
+    // labelクリック時に次へ移動
     const labels = fieldEl.querySelectorAll('fieldset label');
     labels.forEach(function(label) {
       label.addEventListener('click', function() {
         _currentIdx = idx;
+        setActiveFieldset(idx);
         setTimeout(function() { focusNext(idx); }, 100);
       });
     });
   });
 
   // documentレベルで1/2キーを監視
-  // _currentIdx が設定されている間は1→はい、2→いいえで選択して次へ
   document.addEventListener('keydown', function(e) {
     if (_currentIdx < 0 || _currentIdx >= EN_QUESTIONS.length) return;
     if (e.key !== '1' && e.key !== '2') return;
@@ -110,12 +145,13 @@ function setupQuestions() {
 async function formshow_cu5_en(context) {
   setTimeout(function() {
     setupQuestions();
-    // 最初の質問のfieldsetにフォーカスを当てる
+    // 最初の質問にフォーカス＆ハイライト
     const firstEl = document.querySelector('[data-field-code="' + EN_QUESTIONS[0].fc + '"]');
     if (firstEl) {
       const fieldset = firstEl.querySelector('fieldset');
       if (fieldset) {
         _currentIdx = 0;
+        setActiveFieldset(0);
         fieldset.focus();
         firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
