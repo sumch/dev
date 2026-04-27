@@ -1,11 +1,7 @@
 // cu5_en.js
 // fc_en の q01〜q21 の順に質問タイトルを設定し、
-// 1/2キー押下で自動フォーカス移動、受付番号一致でフィールドコピーを行う
+// 1/2キー押下で自動フォーカス移動を行う
 
-// 点数_園.xlsx の fc_en 列を fc_en昇順（q01〜q21）でソートした定義
-// fc: フォームに保存するフィールドコード
-// fc_en: 英語キー（表示順の管理用）
-// str: 表示ラベル
 const EN_QUESTIONS = [
   { fc: 'q25', fc_en: 'q01', str: '片足立ちが5秒以上できますか' },
   { fc: 'q26', fc_en: 'q02', str: 'えんぴつを親指・人差し指・中指の3本の指で持てますか' },
@@ -30,52 +26,34 @@ const EN_QUESTIONS = [
   { fc: 'q39', fc_en: 'q21', str: '集団生活では、友達と一緒に遊んだり、行動することができますか' },
 ];
 
-// kintoneapp プロキシAPI（cu5.js と同じ方式・CORS不要）
-const KV_API_URL = 'https://f1762abc.viewer.kintoneapp.com/public/api/records/2faef12e299fa2dd90a116e5ef4de294e30df4a676401f256420f48e3293cdf9/1';
+/**
+ * 指定インデックスの次の質問にフォーカスを移動する
+ */
+function focusNext(idx) {
+  const next = EN_QUESTIONS[idx + 1];
+  if (!next) return;
+  const nextEl = document.querySelector('[data-field-code="' + next.fc + '"]');
+  if (!nextEl) return;
+  const firstRadio = nextEl.querySelector('input[type="radio"]');
+  if (firstRadio) {
+    firstRadio.focus();
+  } else {
+    nextEl.focus();
+  }
+  nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 /**
- * 受付番号フィールドの変更イベント
- * 6桁入力完了時に kintoneapp API を axios で取得し、受付番号が一致したレコードのフィールドをコピーする
+ * ラジオボタンの値をセットしてclickイベントを発火する
  */
-function setupUketsukeBango(context) {
-  formBridge.events.on('form.field.change.受付番号', async function(ctx) {
-    const input = String(ctx.value || '').trim();
-
-    // 6桁入力されたときだけ照合
-    if (input.length !== 6) return ctx;
-
-    let records;
-    try {
-      const response = await axios.get(KV_API_URL);
-      // レスポンス形式: { num: N, records: [ { フィールドコード: { type, value } } ] }
-      const raw = response.data.records || [];
-      // kintone形式 { value: '...' } をフラット化
-      records = raw.map(r => {
-        const flat = {};
-        Object.keys(r).forEach(k => {
-          flat[k] = (r[k] && r[k].value !== undefined) ? r[k].value : r[k];
-        });
-        return flat;
-      });
-    } catch (e) {
-      console.error('[cu5_en] kv fetch error:', e);
-      return ctx;
+function selectRadioValue(fieldEl, value) {
+  const radios = fieldEl.querySelectorAll('input[type="radio"]');
+  radios.forEach(function(radio) {
+    if (radio.value === value) {
+      radio.checked = true;
+      radio.click();
+      radio.dispatchEvent(new Event('change', { bubbles: true }));
     }
-
-    const matched = records.find(r =>
-      String(r['受付番号'] || '').trim() === input
-    );
-
-    if (matched) {
-      // コピー対象フィールド一覧
-      const copyFields = ['LOT', 'p01_1', 'ap17f', 'bd', 'p04_1', 'p06_2'];
-      copyFields.forEach(function(fc) {
-        if (matched[fc] !== undefined && matched[fc] !== '') {
-          ctx.setFieldValue(fc, matched[fc]);
-        }
-      });
-    }
-    return ctx;
   });
 }
 
@@ -85,68 +63,51 @@ function setupUketsukeBango(context) {
  * 回答後の次フィールドへの自動フォーカス移動を設定する
  */
 function setupQuestions() {
-  // --- タイトルの書き換え ---
   EN_QUESTIONS.forEach(function(q, idx) {
     const fieldEl = document.querySelector('[data-field-code="' + q.fc + '"]');
     if (!fieldEl) return;
+
+    // --- タイトルの書き換え ---
     const titleEl = fieldEl.querySelector('.form-group-title, .field-title, label');
     if (titleEl) {
       titleEl.textContent = (idx + 1) + '. ' + q.str;
     }
-  });
 
-  // --- キーボード操作（1=はい, 2=いいえ）と自動フォーカス ---
-  EN_QUESTIONS.forEach(function(q, idx) {
-    const fieldEl = document.querySelector('[data-field-code="' + q.fc + '"]');
-    if (!fieldEl) return;
+    // --- ラジオボタン各個にkeydownを付ける ---
+    // fieldEl自体はフォーカスを受け取れないため、radio inputに直接付ける
+    const radios = fieldEl.querySelectorAll('input[type="radio"]');
 
+    radios.forEach(function(radio) {
+      // 1/2キーで選択 → 次へ
+      radio.addEventListener('keydown', function(e) {
+        let targetValue = null;
+        if (e.key === '1') targetValue = '1'; // はい
+        if (e.key === '2') targetValue = '2'; // いいえ
+        if (targetValue === null) return;
+
+        e.preventDefault();
+        selectRadioValue(fieldEl, targetValue);
+        // changeイベント処理後に移動するため少し待つ
+        setTimeout(function() { focusNext(idx); }, 80);
+      });
+
+      // クリック・スペースキーでラジオ選択された後も次へ移動
+      radio.addEventListener('change', function() {
+        setTimeout(function() { focusNext(idx); }, 80);
+      });
+    });
+
+    // --- fieldEl全体にもkeydownを付ける（tabフォーカス時など）---
+    fieldEl.setAttribute('tabindex', '0');
     fieldEl.addEventListener('keydown', function(e) {
       let targetValue = null;
-      if (e.key === '1') targetValue = '1'; // はい
-      if (e.key === '2') targetValue = '2'; // いいえ
+      if (e.key === '1') targetValue = '1';
+      if (e.key === '2') targetValue = '2';
       if (targetValue === null) return;
 
       e.preventDefault();
-
-      // ラジオボタンを選択
-      const radios = fieldEl.querySelectorAll('input[type="radio"]');
-      radios.forEach(function(radio) {
-        if (radio.value === targetValue) {
-          radio.checked = true;
-          radio.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-
-      // 次の質問へフォーカス移動
-      const next = EN_QUESTIONS[idx + 1];
-      if (next) {
-        const nextEl = document.querySelector('[data-field-code="' + next.fc + '"]');
-        if (nextEl) {
-          const focusTarget = nextEl.querySelector('input[type="radio"], input, button');
-          if (focusTarget) focusTarget.focus();
-          else nextEl.focus();
-          nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    });
-
-    // ラジオ変更時も次の質問に自動フォーカス
-    const radios = fieldEl.querySelectorAll('input[type="radio"]');
-    radios.forEach(function(radio) {
-      radio.addEventListener('change', function() {
-        const next = EN_QUESTIONS[idx + 1];
-        if (next) {
-          setTimeout(function() {
-            const nextEl = document.querySelector('[data-field-code="' + next.fc + '"]');
-            if (nextEl) {
-              const focusTarget = nextEl.querySelector('input[type="radio"], input, button');
-              if (focusTarget) focusTarget.focus();
-              else nextEl.focus();
-              nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-          }, 80);
-        }
-      });
+      selectRadioValue(fieldEl, targetValue);
+      setTimeout(function() { focusNext(idx); }, 80);
     });
   });
 }
@@ -155,11 +116,6 @@ function setupQuestions() {
  * main_en.js から呼ばれるエントリーポイント
  */
 async function formshow_cu5_en(context) {
-
-  // 受付番号の照合イベントをセット
-  setupUketsukeBango(context);
-
-  // 質問タイトルの書き換えとキーボード操作のセットアップ
   // DOM が描画された後に実行する
   setTimeout(function() {
     setupQuestions();
