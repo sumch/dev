@@ -30,15 +30,12 @@ const EN_QUESTIONS = [
   { fc: 'q39', fc_en: 'q21', str: '集団生活では、友達と一緒に遊んだり、行動することができますか' },
 ];
 
-// kv.php のベースURL（CORS許可済みであること）
-// kv.php 先頭に以下を追加してください：
-//   header('Access-Control-Allow-Origin: https://42afd41c.form.kintoneapp.com');
-const KV_URL = 'https://cityniigata.com/cu/ra/kv.php?id=2230';
+// kintoneapp プロキシAPI（cu5.js と同じ方式・CORS不要）
+const KV_API_URL = 'https://f1762abc.viewer.kintoneapp.com/public/api/records/2faef12e299fa2dd90a116e5ef4de294e30df4a676401f256420f48e3293cdf9/1';
 
 /**
  * 受付番号フィールドの変更イベント
- * 6桁入力完了時に kv.php を axios で取得し、受付番号が一致したレコードのフィールドをコピーする
- * ※ CORSエラーが出る場合は kv.php に Access-Control-Allow-Origin ヘッダーを追加してください
+ * 6桁入力完了時に kintoneapp API を axios で取得し、受付番号が一致したレコードのフィールドをコピーする
  */
 function setupUketsukeBango(context) {
   formBridge.events.on('form.field.change.受付番号', async function(ctx) {
@@ -49,11 +46,17 @@ function setupUketsukeBango(context) {
 
     let records;
     try {
-      const response = await axios.get(KV_URL, { withCredentials: true });
-      // レスポンスが配列 or { records: [...] } 両対応
-      records = Array.isArray(response.data)
-        ? response.data
-        : (response.data.records || [response.data]);
+      const response = await axios.get(KV_API_URL);
+      // レスポンス形式: { num: N, records: [ { フィールドコード: { type, value } } ] }
+      const raw = response.data.records || [];
+      // kintone形式 { value: '...' } をフラット化
+      records = raw.map(r => {
+        const flat = {};
+        Object.keys(r).forEach(k => {
+          flat[k] = (r[k] && r[k].value !== undefined) ? r[k].value : r[k];
+        });
+        return flat;
+      });
     } catch (e) {
       console.error('[cu5_en] kv fetch error:', e);
       return ctx;
