@@ -125,21 +125,28 @@
         return s;
     }
 
-    // 方書から末尾の部屋番号を取り出す
-    // 例: "第二駅南ハイツ110" → "110"  "シティタワー新潟2206" → "2206"  "305号室" → "305"
+    // 方書から末尾の部屋番号を取り出す（全角数字は半角に変換してから取り出す）
+    // 例: "第二駅南ハイツ110" → "110"  "シティタワー新潟２２０６" → "2206"  "305号室" → "305"
     function extractRoomNumber(str) {
         if (!str) return '';
-        const m = str.match(/([0-9]+)[号室F階]?\s*$/);
+        const s = str.replace(/[０-９]/g, m => String.fromCharCode(m.charCodeAt(0) - 0xFEE0));
+        const m = s.match(/([0-9]+)[号室F階]?\s*$/);
         return m ? m[1] : '';
     }
 
     // 住所一致判定
     // - level=5以上のみ判定対象（level<=4は番地未解決のため判定外）
     // - 正規化住所はジオコーダー結果をそのまま比較
+    // - level=5,6の場合は番地も直接比較
     // - 方書がある場合（集合住宅）は部屋番号も比較する
-    function matchAddr(targetAddr, targetLevel, rowAddr, targetKaoku, rowKaoku) {
+    function matchAddr(targetAddr, targetLevel, rowAddr, targetBanchi, rowBanchi, targetKaoku, rowKaoku) {
         if (!targetAddr || Number(targetLevel) <= 4) return false;
         if (targetAddr !== rowAddr) return false;
+
+        // level5・6は番地も比較
+        if (Number(targetLevel) === 5 || Number(targetLevel) === 6) {
+            if (targetBanchi !== rowBanchi) return false;
+        }
 
         const hasKaoku    = !!(targetKaoku && targetKaoku.trim());
         const rowHasKaoku = !!(rowKaoku    && rowKaoku.trim());
@@ -259,17 +266,17 @@
     // （家族重複はaddr1/addr2フラグで表現）
     // =============================================================
 
-    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr, rowKaoku, rowLevel) {
+    function detectDup(target, rowKana, rowFamily, rowBday, rowTel, rowAddr, rowBanchi, rowKaoku, rowLevel) {
         const mKana   = target.kana   && rowKana   === target.kana;
         const mFamily = target.family && rowFamily  === target.family;
         const mBday   = target.bday   && rowBday   === target.bday;
         const mTel    = target.tel    && rowTel    === target.tel;
 
         // kintoneの申請住所 vs CSVの住所（工事場所）
-        const mAddr1  = target.addr1  && matchAddr(target.addr1, target.level1, rowAddr, target.kaoku1, rowKaoku);
+        const mAddr1  = target.addr1  && matchAddr(target.addr1, target.level1, rowAddr, target.banchi1, rowBanchi, target.kaoku1, rowKaoku);
 
         // kintoneの工事場所 vs CSVの住所（工事場所）
-        const mAddr2  = target.addr2  && matchAddr(target.addr2, target.level2, rowAddr, target.kaoku2, rowKaoku);
+        const mAddr2  = target.addr2  && matchAddr(target.addr2, target.level2, rowAddr, target.banchi2, rowBanchi, target.kaoku2, rowKaoku);
 
         const hit = {
             kana:  (mKana && mBday),                   // フリガナ+生年月日
@@ -298,7 +305,8 @@
                 getFamilyKana(row['申請者_ふりがな'] || ''),
                 normalizeBday(row['生年月日'] || ''),
                 normalizeTel(row['申請者_電話番号'] || ''),
-                (row['正規化住所'] || '').trim(),            // CSV側 工事場所_正規化住所
+                (row['正規化住所'] || '').trim(),              // CSV側 工事場所_正規化住所
+                (row['工事場所_住所_番地'] || '').trim(),    // CSV側 工事場所_番地
                 (row['工事場所_住所_方書'] || '').trim(),    // CSV側 工事場所_方書
                 Number(row['level'] || 0)                    // CSV側 工事場所_level
             );
@@ -433,9 +441,11 @@
                         addr1:   addr1Normal.trim(),
                         addr2:   addr2Normal.trim(),
                         level1:  geo1 ? Number(geo1.level) : 0,  // 申請住所_ジオコードlevel
+                        banchi1: val(F.addr1_p4),                   // 申請住所_番地（生値）
                         kaoku1:  val(F.addr1_p5),                   // 申請住所_方書
-                        level2:  geo2 ? Number(geo2.level) : 0,  // 工事場所_ジオコードlevel
-                        kaoku2:  val(F.addr2_p5),                // 工事場所_住所_方書
+                        level2:  geo2 ? Number(geo2.level) : 0,     // 工事場所_ジオコードlevel
+                        banchi2: val(F.addr2_p4),                   // 工事場所_番地（生値）
+                        kaoku2:  val(F.addr2_p5),                   // 工事場所_住所_方書
                     };
 
                     const dup24 = checkDupInCSV(target, rows24, '2024R', val('受付番号'));
