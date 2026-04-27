@@ -82,6 +82,13 @@
     // 定数
     // =============================================================
     const GEOCODE_BASE_URL = 'https://cityniigata.com/geo/tr.php/geocode?opts=all&';
+    const KINTONE_APP_IDS = {
+        '2024R': '1199',
+        '2025R': '1985',
+        '2026R': '2405',
+    };
+    const KINTONE_SEARCH_FIELD = 'f6529947'; // 受付番号フィールドコード（検索用）
+
     const CSV_URLS = {
         '2024R': 'https://cityniigata.com/r/rb/csv_proxy.php?f=2024R',
         '2025R': 'https://cityniigata.com/r/rb/csv_proxy.php?f=2025R',
@@ -311,7 +318,7 @@
                 Number(row['level'] || 0)                    // CSV側 工事場所_level
             );
 
-            if (hit) return { label: `${yearLabel} 受付:${row['受付番号']}`, hit };
+            if (hit) return { label: `${yearLabel} 受付:${row['受付番号']}`, yearLabel, jukeNo: row['受付番号'], hit };
         }
         return null;
     }
@@ -492,7 +499,13 @@
                             if (r.hit.addr2) parts.push(`工事場所: ${addr2Normal}`);
                             return parts.join('　');
                         });
-                        record[F.dupCheckResult] = { value: dupDetailLines.join(' / ') };
+                        // 最初の重複レコードへのリンクをリンク型フィールドに書き込む
+                        const firstDup = dupResults[0];
+                        const appId = KINTONE_APP_IDS[firstDup.yearLabel] || '';
+                        const dupLink = appId && firstDup.jukeNo
+                            ? `https://9w5mkt0gswgp.cybozu.com/k/${appId}/?q=${KINTONE_SEARCH_FIELD}%20%3D%20%22${encodeURIComponent(firstDup.jukeNo)}%22`
+                            : '';
+                        record[F.dupCheckResult] = { value: dupLink };
 
                         updates.push({ id: recId, record });
 
