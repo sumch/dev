@@ -51,6 +51,7 @@
         // --- 重複自動チェック（チェックボックス型）---
         dupCheck:       '重複自動チェック',
         dupCheckResult: '重複自動チェック結果', // 重複詳細テキスト（1行テキスト型）
+        dupLink:        'リンク',               // 重複レコードリンク（リンク型）
     };
 
     // =============================================================
@@ -499,13 +500,14 @@
                             if (r.hit.addr2) parts.push(`工事場所: ${addr2Normal}`);
                             return parts.join('　');
                         });
+                        record[F.dupCheckResult] = { value: dupDetailLines.join(' / ') };
                         // 最初の重複レコードへのリンクをリンク型フィールドに書き込む
                         const firstDup = dupResults[0];
                         const appId = KINTONE_APP_IDS[firstDup.yearLabel] || '';
-                        const dupLink = appId && firstDup.jukeNo
+                        const dupLinkUrl = appId && firstDup.jukeNo
                             ? `https://9w5mkt0gswgp.cybozu.com/k/${appId}/?q=${KINTONE_SEARCH_FIELD}%20%3D%20%22${encodeURIComponent(firstDup.jukeNo)}%22`
                             : '';
-                        record[F.dupCheckResult] = { value: dupLink };
+                        record[F.dupLink] = { value: dupLinkUrl };
 
                         updates.push({ id: recId, record });
 
