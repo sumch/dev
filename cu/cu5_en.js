@@ -81,8 +81,8 @@ function setupQuestions() {
       // 1/2キーで選択 → 次へ
       radio.addEventListener('keydown', function(e) {
         let targetValue = null;
-        if (e.key === '1') targetValue = '1'; // はい
-        if (e.key === '2') targetValue = '2'; // いいえ
+        if (e.key === '1') targetValue = 'はい'; // はい
+        if (e.key === '2') targetValue = 'いいえ'; // いいえ
         if (targetValue === null) return;
 
         e.preventDefault();
