@@ -1,6 +1,4 @@
 // cu5_en.js
-// fc_en の q01〜q21 の順に質問タイトルを設定し、
-// 1/2キー押下で自動フォーカス移動を行う
 
 const EN_QUESTIONS = [
   { fc: 'q25', fc_en: 'q01', str: '片足立ちが5秒以上できますか' },
@@ -26,97 +24,77 @@ const EN_QUESTIONS = [
   { fc: 'q39', fc_en: 'q21', str: '集団生活では、友達と一緒に遊んだり、行動することができますか' },
 ];
 
-/**
- * 指定インデックスの次の質問にフォーカスを移動する
- */
 function focusNext(idx) {
   const next = EN_QUESTIONS[idx + 1];
   if (!next) return;
   const nextEl = document.querySelector('[data-field-code="' + next.fc + '"]');
   if (!nextEl) return;
   const firstRadio = nextEl.querySelector('input[type="radio"]');
-  if (firstRadio) {
-    firstRadio.focus();
-  } else {
-    nextEl.focus();
-  }
+  if (firstRadio) firstRadio.focus();
+  else nextEl.focus();
   nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/**
- * ラジオボタンの値をセットしてclickイベントを発火する
- */
-function selectRadioValue(fieldEl, value) {
-  const radios = fieldEl.querySelectorAll('input[type="radio"]');
-  radios.forEach(function(radio) {
-    if (radio.value === value) {
-      radio.checked = true;
-      radio.click();
-      radio.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  });
-}
-
-/**
- * q01〜q21 のラジオボタンタイトルを EN_QUESTIONS の str で上書きし、
- * 1キー→はい(値=1)、2キー→いいえ(値=2) のキーボード入力と
- * 回答後の次フィールドへの自動フォーカス移動を設定する
- */
 function setupQuestions() {
   EN_QUESTIONS.forEach(function(q, idx) {
     const fieldEl = document.querySelector('[data-field-code="' + q.fc + '"]');
     if (!fieldEl) return;
 
-    // --- タイトルの書き換え ---
+    // タイトルの書き換え
     const titleEl = fieldEl.querySelector('.form-group-title, .field-title, label');
     if (titleEl) {
       titleEl.textContent = (idx + 1) + '. ' + q.str;
     }
 
-    // --- ラジオボタン各個にkeydownを付ける ---
-    // fieldEl自体はフォーカスを受け取れないため、radio inputに直接付ける
-    const radios = fieldEl.querySelectorAll('input[type="radio"]');
+    // キーボード処理中フラグ（changeイベントの二重発火防止）
+    let _keyHandling = false;
 
-    radios.forEach(function(radio) {
-      // 1/2キーで選択 → 次へ
-      radio.addEventListener('keydown', function(e) {
-        let targetValue = null;
-        if (e.key === '1') targetValue = 'はい'; // はい
-        if (e.key === '2') targetValue = 'いいえ'; // いいえ
-        if (targetValue === null) return;
-
-        e.preventDefault();
-        selectRadioValue(fieldEl, targetValue);
-        // changeイベント処理後に移動するため少し待つ
-        setTimeout(function() { focusNext(idx); }, 80);
-      });
-
-      // クリック・スペースキーでラジオ選択された後も次へ移動
-      radio.addEventListener('change', function() {
-        setTimeout(function() { focusNext(idx); }, 80);
-      });
-    });
-
-    // --- fieldEl全体にもkeydownを付ける（tabフォーカス時など）---
-    fieldEl.setAttribute('tabindex', '0');
-    fieldEl.addEventListener('keydown', function(e) {
+    // 1/2キー処理の共通関数
+    function handleKey(e) {
       let targetValue = null;
       if (e.key === '1') targetValue = 'はい';
       if (e.key === '2') targetValue = 'いいえ';
       if (targetValue === null) return;
 
       e.preventDefault();
-      selectRadioValue(fieldEl, targetValue);
-      setTimeout(function() { focusNext(idx); }, 80);
+      _keyHandling = true;
+
+      // 対象ラジオを選択
+      const radios = fieldEl.querySelectorAll('input[type="radio"]');
+      radios.forEach(function(radio) {
+        if (radio.value === targetValue) {
+          radio.checked = true;
+          // formBridgeへの値反映のためclickを発火
+          radio.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+      });
+
+      // 次の質問へ移動
+      setTimeout(function() {
+        _keyHandling = false;
+        focusNext(idx);
+      }, 100);
+    }
+
+    // ラジオボタン各個にkeydownを付ける
+    const radios = fieldEl.querySelectorAll('input[type="radio"]');
+    radios.forEach(function(radio) {
+      radio.addEventListener('keydown', handleKey);
+
+      // クリックで選択された場合のみ次へ（キー操作時は二重防止）
+      radio.addEventListener('change', function() {
+        if (_keyHandling) return;
+        setTimeout(function() { focusNext(idx); }, 80);
+      });
     });
+
+    // fieldEl全体にもkeydownを付ける（tabフォーカスでfieldElにフォーカスが当たった場合）
+    fieldEl.setAttribute('tabindex', '0');
+    fieldEl.addEventListener('keydown', handleKey);
   });
 }
 
-/**
- * main_en.js から呼ばれるエントリーポイント
- */
 async function formshow_cu5_en(context) {
-  // DOM が描画された後に実行する
   setTimeout(function() {
     setupQuestions();
   }, 300);
