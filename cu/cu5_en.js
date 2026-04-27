@@ -24,15 +24,34 @@ const EN_QUESTIONS = [
   { fc: 'q39', fc_en: 'q21', str: '集団生活では、友達と一緒に遊んだり、行動することができますか' },
 ];
 
+// 現在フォーカス中の質問インデックス（-1=未選択）
+let _currentIdx = -1;
+
 function focusNext(idx) {
   const next = EN_QUESTIONS[idx + 1];
   if (!next) return;
   const nextEl = document.querySelector('[data-field-code="' + next.fc + '"]');
   if (!nextEl) return;
-  const firstRadio = nextEl.querySelector('input[type="radio"]');
-  if (firstRadio) firstRadio.focus();
-  else nextEl.focus();
+  _currentIdx = idx + 1;
+  // fieldsetをフォーカス可能にしてフォーカスを当てる
+  const fieldset = nextEl.querySelector('fieldset');
+  if (fieldset) {
+    fieldset.focus();
+  } else {
+    nextEl.focus();
+  }
   nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function selectValue(fieldEl, value) {
+  // hidden inputではなく、対応するlabel要素をクリックする
+  const labels = fieldEl.querySelectorAll('fieldset label');
+  labels.forEach(function(label) {
+    const input = label.querySelector('input[type="radio"]');
+    if (input && input.value === value) {
+      label.click();
+    }
+  });
 }
 
 function setupQuestions() {
@@ -41,61 +60,65 @@ function setupQuestions() {
     if (!fieldEl) return;
 
     // タイトルの書き換え
-    const titleEl = fieldEl.querySelector('.form-group-title, .field-title, label');
+    const titleEl = fieldEl.querySelector('label.text-form-base, .form-group-title, .field-title');
     if (titleEl) {
       titleEl.textContent = (idx + 1) + '. ' + q.str;
     }
 
-    // キーボード処理中フラグ（changeイベントの二重発火防止）
-    let _keyHandling = false;
+    // fieldset にtabindex付与してフォーカス可能にする
+    const fieldset = fieldEl.querySelector('fieldset');
+    if (fieldset) {
+      fieldset.setAttribute('tabindex', '0');
 
-    // 1/2キー処理の共通関数
-    function handleKey(e) {
-      let targetValue = null;
-      if (e.key === '1') targetValue = 'はい';
-      if (e.key === '2') targetValue = 'いいえ';
-      if (targetValue === null) return;
-
-      e.preventDefault();
-      _keyHandling = true;
-
-      // 対象ラジオを選択
-      const radios = fieldEl.querySelectorAll('input[type="radio"]');
-      radios.forEach(function(radio) {
-        if (radio.value === targetValue) {
-          radio.checked = true;
-          // formBridgeへの値反映のためclickを発火
-          radio.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        }
+      // fieldsetにフォーカスが当たったら _currentIdx を更新
+      fieldset.addEventListener('focus', function() {
+        _currentIdx = idx;
       });
-
-      // 次の質問へ移動
-      setTimeout(function() {
-        _keyHandling = false;
-        focusNext(idx);
-      }, 100);
     }
 
-    // ラジオボタン各個にkeydownを付ける
-    const radios = fieldEl.querySelectorAll('input[type="radio"]');
-    radios.forEach(function(radio) {
-      radio.addEventListener('keydown', handleKey);
-
-      // クリックで選択された場合のみ次へ（キー操作時は二重防止）
-      radio.addEventListener('change', function() {
-        if (_keyHandling) return;
-        setTimeout(function() { focusNext(idx); }, 80);
+    // labelクリック時に次へ移動（クリックによる選択）
+    const labels = fieldEl.querySelectorAll('fieldset label');
+    labels.forEach(function(label) {
+      label.addEventListener('click', function() {
+        _currentIdx = idx;
+        setTimeout(function() { focusNext(idx); }, 100);
       });
     });
+  });
 
-    // fieldEl全体にもkeydownを付ける（tabフォーカスでfieldElにフォーカスが当たった場合）
-    fieldEl.setAttribute('tabindex', '0');
-    fieldEl.addEventListener('keydown', handleKey);
+  // documentレベルで1/2キーを監視
+  // _currentIdx が設定されている間は1→はい、2→いいえで選択して次へ
+  document.addEventListener('keydown', function(e) {
+    if (_currentIdx < 0 || _currentIdx >= EN_QUESTIONS.length) return;
+    if (e.key !== '1' && e.key !== '2') return;
+
+    // テキスト入力欄にフォーカスがある場合は無視
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    e.preventDefault();
+    const targetValue = e.key === '1' ? 'はい' : 'いいえ';
+    const idx = _currentIdx;
+    const fieldEl = document.querySelector('[data-field-code="' + EN_QUESTIONS[idx].fc + '"]');
+    if (!fieldEl) return;
+
+    selectValue(fieldEl, targetValue);
+    setTimeout(function() { focusNext(idx); }, 100);
   });
 }
 
 async function formshow_cu5_en(context) {
   setTimeout(function() {
     setupQuestions();
+    // 最初の質問のfieldsetにフォーカスを当てる
+    const firstEl = document.querySelector('[data-field-code="' + EN_QUESTIONS[0].fc + '"]');
+    if (firstEl) {
+      const fieldset = firstEl.querySelector('fieldset');
+      if (fieldset) {
+        _currentIdx = 0;
+        fieldset.focus();
+        firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   }, 300);
 }
