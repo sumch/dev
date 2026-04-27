@@ -101,8 +101,8 @@ function setupQuestions() {
     fieldEl.setAttribute('tabindex', '0');
     fieldEl.addEventListener('keydown', function(e) {
       let targetValue = null;
-      if (e.key === '1') targetValue = '1';
-      if (e.key === '2') targetValue = '2';
+      if (e.key === '1') targetValue = 'はい';
+      if (e.key === '2') targetValue = 'いいえ';
       if (targetValue === null) return;
 
       e.preventDefault();
